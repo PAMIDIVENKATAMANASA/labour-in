@@ -1,34 +1,21 @@
-<<<<<<< HEAD
 
+Labour-In Project
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/c60fcc0e-f9f7-495b-8b53-c81887746ae8
+This is the **Labour-In** project. It includes a **Django backend** and a **React frontend**.  
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/c60fcc0e-f9f7-495b-8b53-c81887746ae8) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Follow these steps to run frontend:
 
 ```sh
 # Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+git clone https://github.com/PAMIDIVENKATAMANASA/labour-in.git
 
 # Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+cd labour-in
 
 # Step 3: Install the necessary dependencies.
 npm i
@@ -37,19 +24,6 @@ npm i
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
 
 ## What technologies are used for this project?
 
@@ -61,17 +35,23 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/c60fcc0e-f9f7-495b-8b53-c81887746ae8) and click on Share -> Publish.
+Follow these steps to run backtend:
 
-## Can I connect a custom domain to my Lovable project?
 
-Yes, you can!
+```sh
+# Step 1:Navigate to the backend folder:
+cd django_project
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Step 2: Activate your Python virtual environment:
+source venv/bin/activate   # Linux/macOS
+venv\Scripts\activate      # Windows
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-=======
-# labour-in
->>>>>>> 3100713a931dcf7c87e15b8ed6d139ba501d055d
+# Step 3: Install the necessary dependencies.
+pip install -r requirements.txt
+
+# Step 4: Run the Django development server
+python manage.py runserver
+```
+
+
