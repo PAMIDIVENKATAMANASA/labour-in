@@ -161,4 +161,8 @@ All colors MUST be HSL.
   .gradient-card {
     background: var(--gradient-card);
   }
+
+  .border-border {
+    border-color: hsl(var(--border));
+  }
 }

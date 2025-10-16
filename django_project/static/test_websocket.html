@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skilled Labor Platform - WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .notification {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .api-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        input, select {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Skilled Labor Platform - Feature Testing</h1>
+    
+    <!-- WebSocket Connection Status -->
+    <div class="container">
+        <h2>📡 Real-Time WebSocket Connection</h2>
+        <div id="ws-status" class="status disconnected">Disconnected</div>
+        <button onclick="connectWebSocket()">Connect WebSocket</button>
+        <button onclick="disconnectWebSocket()">Disconnect</button>
+        <div id="notifications"></div>
+    </div>
+
+    <!-- API Testing -->
+    <div class="container">
+        <h2>🔧 API Testing</h2>
+        
+        <div class="api-section">
+            <h3>Authentication</h3>
+            <input type="text" id="username" placeholder="Username" value="admin">
+            <input type="password" id="password" placeholder="Password" value="admin123">
+            <button onclick="login()">Login</button>
+            <button onclick="register()">Register New User</button>
+            <div id="auth-status"></div>
+        </div>
+
+        <div class="api-section">
+            <h3>Job Management</h3>
+            <button onclick="getJobs()">Get All Jobs</button>
+            <button onclick="createJob()">Create Test Job</button>
+            <button onclick="getApplications()">Get Applications</button>
+        </div>
+
+        <div class="api-section">
+            <h3>Skills & Laborers</h3>
+            <button onclick="getSkills()">Get Skills</button>
+            <button onclick="getLaborers()">Get Laborers</button>
+            <button onclick="createSkill()">Create Skill</button>
+        </div>
+
+        <div class="api-section">
+            <h3>Notifications</h3>
+            <button onclick="getNotifications()">Get Notifications</button>
+            <button onclick="markAllRead()">Mark All Read</button>
+        </div>
+    </div>
+
+    <!-- System Logs -->
+    <div class="container">
+        <h2>📋 System Logs</h2>
+        <div id="logs" class="log"></div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script>
+        let ws = null;
+        let authToken = null;
+
+        // WebSocket Functions
+        function connectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+            
+            ws = new WebSocket('ws://localhost:8000/ws/notifications/');
+            
+            ws.onopen = function(event) {
+                updateStatus('connected', 'WebSocket Connected');
+                log('WebSocket connection established');
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                log('WebSocket message received: ' + JSON.stringify(data));
+                
+                if (data.type === 'new_notification') {
+                    displayNotification(data.notification);
+                }
+            };
+            
+            ws.onclose = function(event) {
+                updateStatus('disconnected', 'WebSocket Disconnected');
+                log('WebSocket connection closed');
+            };
+            
+            ws.onerror = function(error) {
+                log('WebSocket error: ' + error);
+            };
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function displayNotification(notification) {
+            const container = document.getElementById('notifications');
+            const div = document.createElement('div');
+            div.className = 'notification';
+            div.innerHTML = `
+                <strong>${notification.type}</strong><br>
+                ${notification.message}<br>
+                <small>Created: ${new Date(notification.created_at).toLocaleString()}</small>
+            `;
+            container.appendChild(div);
+        }
+
+        // API Functions
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.access;
+                    document.getElementById('auth-status').innerHTML = 
+                        '<div style="color: green;">✅ Login successful! Token received.</div>';
+                    log('Authentication successful');
+                } else {
+                    document.getElementById('auth-status').innerHTML = 
+                        '<div style="color: red;">❌ Login failed: ' + JSON.stringify(data) + '</div>';
+                    log('Authentication failed: ' + JSON.stringify(data));
+                }
+            } catch (error) {
+                log('Login error: ' + error);
+            }
+        }
+
+        async function register() {
+            const userData = {
+                username: 'testuser' + Date.now(),
+                email: 'test' + Date.now() + '@example.com',
+                first_name: 'Test',
+                last_name: 'User',
+                user_type: 'LABORER',
+                password: 'testpass123',
+                password_confirm: 'testpass123'
+            };
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/register/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                const data = await response.json();
+                log('Registration response: ' + JSON.stringify(data));
+            } catch (error) {
+                log('Registration error: ' + error);
+            }
+        }
+
+        async function getJobs() {
+            if (!authToken) {
+                log('Please login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/jobs/', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                
+                const data = await response.json();
+                log('Jobs response: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('Get jobs error: ' + error);
+            }
+        }
+
+        async function createJob() {
+            if (!authToken) {
+                log('Please login first');
+                return;
+            }
+            
+            const jobData = {
+                job_title: 'Test Job ' + Date.now(),
+                job_description: 'This is a test job created via API',
+                work_type: 'CONTRACT',
+                budget_min: 500,
+                budget_max: 1000,
+                location: 'Test Location',
+                latitude: 40.7128,
+                longitude: -74.0060,
+                start_date: '2024-10-15'
+            };
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/jobs/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jobData)
+                });
+                
+                const data = await response.json();
+                log('Job creation response: ' + JSON.stringify(data));
+            } catch (error) {
+                log('Create job error: ' + error);
+            }
+        }
+
+        async function getSkills() {
+            try {
+                const response = await fetch('http://localhost:8000/api/skills/');
+                const data = await response.json();
+                log('Skills: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('Get skills error: ' + error);
+            }
+        }
+
+        async function getLaborers() {
+            if (!authToken) {
+                log('Please login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/laborers/', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                const data = await response.json();
+                log('Laborers: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('Get laborers error: ' + error);
+            }
+        }
+
+        async function getNotifications() {
+            if (!authToken) {
+                log('Please login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/notifications/', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                const data = await response.json();
+                log('Notifications: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('Get notifications error: ' + error);
+            }
+        }
+
+        // Utility Functions
+        function updateStatus(status, message) {
+            const statusDiv = document.getElementById('ws-status');
+            statusDiv.className = 'status ' + status;
+            statusDiv.textContent = message;
+        }
+
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${timestamp}] ${message}\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            log('Page loaded - ready for testing');
+            // Auto-connect WebSocket
+            setTimeout(connectWebSocket, 1000);
+        };
+    </script>
+</body>
+</html>

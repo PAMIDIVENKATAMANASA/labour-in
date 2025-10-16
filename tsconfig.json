@@ -1,11 +1,20 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
   "compilerOptions": {
+
+    "ignoreDeprecations": "6.0",
+
+    /* ✅ Keep your alias setup working */
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
+
+    /* Other compiler options */
     "noImplicitAny": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,

@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { Briefcase, Facebook, Twitter, Linkedin, Instagram } from "lucide-react";
+import { Link } from "react-router-dom"
+import { Briefcase, Facebook, Twitter, Linkedin, Instagram } from "lucide-react"
 
 const Footer = () => {
   return (
@@ -11,11 +11,8 @@ const Footer = () => {
               <Briefcase className="h-6 w-6 text-primary" />
               <span className="text-xl font-bold text-foreground">Skilled Labor</span>
             </Link>
-            <p className="text-sm text-muted-foreground">
-              Connecting skilled hands with local needs, instantly.
-            </p>
+            <p className="text-sm text-muted-foreground">Connecting skilled hands with local needs, instantly.</p>
           </div>
-
           <div>
             <h3 className="font-semibold text-foreground mb-4">For Workers</h3>
             <ul className="space-y-2">
@@ -25,7 +22,10 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/dashboard/laborer" className="text-sm text-muted-foreground hover:text-primary transition-base">
+                <Link
+                  to="/dashboard/laborer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-base"
+                >
                   Laborer Dashboard
                 </Link>
               </li>
@@ -41,7 +41,10 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/dashboard/employer" className="text-sm text-muted-foreground hover:text-primary transition-base">
+                <Link
+                  to="/dashboard/employer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-base"
+                >
                   Employer Dashboard
                 </Link>
               </li>
@@ -71,28 +74,46 @@ const Footer = () => {
         </div>
 
         <div className="border-t pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
-            © 2025 Skilled Labor Platform. All rights reserved.
-          </p>
-          
+          <p className="text-sm text-muted-foreground">© 2025 Skilled Labor Platform. All rights reserved.</p>
+
           <div className="flex gap-4">
-            <a href="#" className="text-muted-foreground hover:text-primary transition-base">
+            <a
+              href="https://www.facebook.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-base"
+            >
               <Facebook className="h-5 w-5" />
             </a>
-            <a href="#" className="text-muted-foreground hover:text-primary transition-base">
+            <a
+              href="https://twitter.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-base"
+            >
               <Twitter className="h-5 w-5" />
             </a>
-            <a href="#" className="text-muted-foreground hover:text-primary transition-base">
+            <a
+              href="https://www.linkedin.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-base"
+            >
               <Linkedin className="h-5 w-5" />
             </a>
-            <a href="#" className="text-muted-foreground hover:text-primary transition-base">
+            <a
+              href="https://www.instagram.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-base"
+            >
               <Instagram className="h-5 w-5" />
             </a>
           </div>
         </div>
       </div>
     </footer>
-  );
-};
+  )
+}
 
-export default Footer;
+export default Footer

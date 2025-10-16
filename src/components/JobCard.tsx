@@ -1,40 +1,40 @@
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, DollarSign, Clock } from "lucide-react";
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Link } from "react-router-dom"
+import { Badge } from "@/components/ui/badge"
+import { MapPin, DollarSign, Clock } from "lucide-react"
+import { getCurrentUser } from "@/lib/auth"
 
 interface JobCardProps {
-  jobTitle: string;
-  companyName: string;
-  location: string;
-  paymentType: string;
-  budgetMax: number;
-  postedTime?: string;
-  jobStatus?: string;
+  jobId: number // added
+  jobTitle: string
+  companyName: string
+  location: string
+  paymentType: string
+  budgetMax: number
+  postedTime?: string
+  jobStatus?: string
 }
 
 const JobCard = ({
+  jobId,
   jobTitle,
   companyName,
   location,
   paymentType,
   budgetMax,
   postedTime = "2 hours ago",
-  jobStatus = "active"
+  jobStatus = "active",
 }: JobCardProps) => {
   return (
     <Card className="shadow-card hover:shadow-hover transition-slow border-l-4 border-l-primary">
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-foreground mb-1">
-              {jobTitle}
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground mb-1">{jobTitle}</h3>
             <p className="text-sm text-muted-foreground">{companyName}</p>
           </div>
-          <Badge variant={jobStatus === "active" ? "default" : "secondary"}>
-            {jobStatus}
-          </Badge>
+          <Badge variant={jobStatus === "active" ? "default" : "secondary"}>{jobStatus}</Badge>
         </div>
 
         <div className="space-y-2 mb-4">
@@ -52,14 +52,23 @@ const JobCard = ({
           </div>
         </div>
       </CardContent>
-      
+
       <CardFooter className="px-6 pb-6 pt-0">
-        <Button variant="default" className="w-full">
-          Apply Now
-        </Button>
+        {(() => {
+          const user = getCurrentUser()
+          const applyHref = `/jobs/${jobId}/apply`
+          const nextParam = encodeURIComponent(applyHref)
+          const loginHref = `/login?next=${nextParam}`
+          const to = user?.user_type === "LABORER" ? applyHref : loginHref
+          return (
+            <Button asChild variant="default" className="w-full">
+              <Link to={to}>Apply Now</Link>
+            </Button>
+          )
+        })()}
       </CardFooter>
     </Card>
-  );
-};
+  )
+}
 
-export default JobCard;
+export default JobCard
