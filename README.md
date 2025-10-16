@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 
 ## Project info
@@ -71,3 +72,6 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+=======
+# labour-in
+>>>>>>> 3100713a931dcf7c87e15b8ed6d139ba501d055d
