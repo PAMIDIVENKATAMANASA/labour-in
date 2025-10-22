@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone 
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 
@@ -78,6 +79,9 @@ class SkilledLaborer(models.Model):
     preferred_latitude = models.FloatField(null=True, blank=True, help_text="Preferred location latitude")
     preferred_longitude = models.FloatField(null=True, blank=True, help_text="Preferred location longitude")
     max_travel_distance_km = models.PositiveIntegerField(default=25, help_text="Maximum travel distance in kilometers")
+
+    has_avatar = models.BooleanField(default=False)
+    profile_completeness = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])
     
     def __str__(self):
         return f"Laborer: {self.user.username}"
@@ -167,6 +171,13 @@ class JobApplication(models.Model):
     cover_letter = models.TextField(blank=True)
     applied_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    _original_status = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Store the status when the object is first loaded
+        self._original_status = self.application_status
     
     class Meta:
         unique_together = ['job_posting', 'laborer']
@@ -174,6 +185,52 @@ class JobApplication(models.Model):
     def __str__(self):
         return f"{self.laborer.user.username} -> {self.job_posting.job_title}"
 
+    def save(self, *args, **kwargs):
+        # Check if this is an update or a new object
+        is_new = self._state.adding
+        
+        # Save the object to the database first
+        super().save(*args, **kwargs)
+
+        # Only run this logic if the status has *changed*
+        if not is_new and self.application_status != self._original_status:
+            message = ""
+            recipient = None
+            
+            # 1. Notification Logic (already here from before)
+            if self.application_status == 'ACCEPTED':
+                message = f"Congratulations! Your application for '{self.job_posting.job_title}' has been accepted."
+                recipient = self.laborer.user
+            elif self.application_status == 'REJECTED':
+                message = f"Unfortunately, your application for '{self.job_posting.job_title}' was not successful this time."
+                recipient = self.laborer.user
+            elif self.application_status == 'WITHDRAWN':
+                message = f"The applicant {self.laborer.user.username} has withdrawn their application for '{self.job_posting.job_title}'."
+                recipient = self.job_posting.employer.user
+            
+            if message and recipient:
+                Notification.objects.create(
+                    recipient=recipient,
+                    notification_type='APPLICATION_STATUS',
+                    message=message
+                )
+            
+            # --- 2. WORK HISTORY LOGIC (THIS IS THE FIX) ---
+            # If the application is accepted, create/update its WorkHistory item
+            if self.application_status == 'ACCEPTED':
+                WorkHistory.objects.update_or_create(
+                    job_posting=self.job_posting,
+                    laborer=self.laborer,
+                    defaults={
+                        'employer': self.job_posting.employer,
+                        'work_status': 'IN_PROGRESS',
+                        'started_at': timezone.now()
+                    }
+                )
+            # --- END OF FIX ---
+        
+        # Finally, update the original status in memory for next time
+        self._original_status = self.application_status
 
 class WorkHistory(models.Model):
     """Work History model"""

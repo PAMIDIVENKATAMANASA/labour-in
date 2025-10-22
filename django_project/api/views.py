@@ -27,6 +27,8 @@ from .serializers import (
     JobApplicationSerializer, JobApplicationListSerializer,
     WorkHistorySerializer, NotificationSerializer,
     CustomTokenObtainPairSerializer
+ # <-- Make sure this is imported
+  
 )
 from .permissions import (
     IsOwnerOrReadOnly, IsEmployerOrReadOnly, IsLaborerOrReadOnly,
@@ -103,19 +105,70 @@ class SkilledLaborerProfileViewSet(viewsets.ModelViewSet):
         
     def get_queryset(self):
         user = self.request.user
+        
+        # We add .prefetch_related() to both querysets
+        
         if user.user_type == 'ADMIN':
-            return SkilledLaborer.objects.select_related('user').all()
+            return SkilledLaborer.objects.select_related('user').prefetch_related(
+                'laborerskills_set', 'laborerskills_set__skill'
+            ).all().order_by('user__username')
+            
         elif user.user_type == 'LABORER':
-            return SkilledLaborer.objects.select_related('user').filter(user=user)
+            return SkilledLaborer.objects.select_related('user').prefetch_related(
+                'laborerskills_set', 'laborerskills_set__skill'
+            ).filter(user=user).order_by('user__username')
+            
         return SkilledLaborer.objects.none()
 
     def get_object(self):
         # Override to allow PATCH by user ID for convenience from frontend
         queryset = self.get_queryset()
-        obj = queryset.filter(user_id=self.kwargs['pk']).first()
-        self.check_object_permissions(self.request, obj)
-        return obj
+        pk = self.kwargs.get('pk')
+        if pk:
+             # Try to get by user_id first, which is what the frontend uses
+            obj = queryset.filter(user_id=pk).first()
+            if obj:
+                self.check_object_permissions(self.request, obj)
+                return obj
+        
+        # Fallback for standard /api/laborers/{id}/ (which we don't use, but is good practice)
+        return super().get_object()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        
+        # Handle the ?user_id= query from your frontend init()
+        user_id = request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        # The .save() method calls the serializer's .update() method
+        # and returns the FINAL, updated instance (with new progress).
+        updated_instance = serializer.save() 
+        
+        # The original 'serializer.data' is now stale.
+        # We must create a NEW serializer with the final instance
+        # to get the fresh data to send back to the frontend.
+        fresh_serializer = self.get_serializer(updated_instance)
 
+        return Response(fresh_serializer.data, status=status.HTTP_200_OK)
+    
+    # ADD THIS NEW ACTION
+    @action(detail=True, methods=['get'])
+    def progress(self, request, pk=None):
+        laborer = self.get_object()
+        # We can trigger a recalculate on-demand, just to be 100% safe
+        laborer.profile_completeness = SkilledLaborerProfileSerializer.recalculate_completeness(laborer)
+        laborer.save(update_fields=['profile_completeness'])
+        return Response({'profile_completeness': laborer.profile_completeness})
 
 class SkillViewSet(viewsets.ModelViewSet):
     """Admin-only ViewSet for Skills"""
@@ -145,16 +198,44 @@ class LaborerSkillsViewSet(viewsets.ModelViewSet):
             return LaborerSkills.objects.filter(laborer__user=self.request.user)
         return LaborerSkills.objects.none()
 
-    def perform_create(self, serializer):
-        if self.request.user.user_type != 'LABORER':
+    # ADD THIS NEW create method
+    def create(self, request, *args, **kwargs):
+        if request.user.user_type != 'LABORER':
             return Response({'error': 'Only laborers can add skills'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
         try:
-            laborer = self.request.user.skilledlaborer
+            laborer = request.user.skilledlaborer
         except AttributeError:
-            # Auto-provision a minimal profile if missing (mirrors applications flow)
-            laborer = SkilledLaborer.objects.create(user=self.request.user)
-        serializer.save(laborer=laborer)
+            laborer = SkilledLaborer.objects.create(user=request.user)
 
+        if LaborerSkills.objects.filter(laborer=laborer, skill_id=serializer.validated_data['skill_id']).exists():
+            return Response({'error': 'This skill has already been added.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer.save(laborer=laborer) 
+        
+        # Recalculate progress using our new static method
+        laborer.profile_completeness = SkilledLaborerProfileSerializer.recalculate_completeness(laborer)
+        laborer.save(update_fields=['profile_completeness'])
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    # --- REPLACE 'destroy' method ---
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        laborer = instance.laborer
+        self.perform_destroy(instance)
+        
+        # Recalculate progress using our new static method
+        # We refresh_from_db() to get the new skill count
+        laborer.refresh_from_db() 
+        laborer.profile_completeness = SkilledLaborerProfileSerializer.recalculate_completeness(laborer)
+        laborer.save(update_fields=['profile_completeness'])
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class JobPostingViewSet(viewsets.ModelViewSet):
     """ViewSet for Job Postings with employer restrictions"""
@@ -255,31 +336,11 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
-        # Get original status before saving
-        original_status = serializer.instance.application_status
-        updated_application = serializer.save()
-        new_status = updated_application.application_status
-
-        # If status changed to 'ACCEPTED', create a notification
-        if new_status == 'ACCEPTED' and original_status != 'ACCEPTED':
-            Notification.objects.create(
-                recipient=updated_application.laborer.user,
-                notification_type='APPLICATION_STATUS',
-                message=f"Congratulations! Your application for '{updated_application.job_posting.job_title}' has been accepted."
-            )
-
-        # Also create or update WorkHistory record
-        if new_status == 'ACCEPTED':
-            WorkHistory.objects.update_or_create(
-                job_posting=updated_application.job_posting,
-                laborer=updated_application.laborer,
-                defaults={
-                    'employer': updated_application.job_posting.employer,
-                    'work_status': 'IN_PROGRESS',
-                    'started_at': timezone.now()
-                }
-            )
-
+        # All logic (notifications, work history) has been
+        # moved to the JobApplication.save() method in models.py
+        # This is now much cleaner and more robust.
+        serializer.save()
+    
 
 class WorkHistoryViewSet(viewsets.ModelViewSet):
     """ViewSet for Work History"""

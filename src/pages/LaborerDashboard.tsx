@@ -15,8 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+// --- THIS IS THE FIX: Reverted to using the '@' alias ---
 import { apiFetch } from "@/lib/api"
 import { getCurrentUser, type AuthUser as AuthUserFromLib } from "@/lib/auth"
+// --- END FIX ---
 import { Toaster as Sonner, toast } from "@/components/ui/sonner"
 import { Badge } from "@/components/ui/badge"
 
@@ -26,6 +28,9 @@ type AuthUser = AuthUserFromLib & {
   id: number;
 }
 
+// --- UPDATED THIS SECTION ---
+type JobStatus = "OPEN" | "CLOSED" | "IN_PROGRESS" | "CANCELLED"
+
 interface ApiJob {
   id: number
   job_title: string
@@ -33,7 +38,10 @@ interface ApiJob {
   location: string
   budget_max: number
   has_applied: boolean
+  job_status: JobStatus // <--- ADDED THIS FIELD
 }
+// --- END OF UPDATE ---
+
 
 type UserProfileData = {
   first_name?: string
@@ -52,6 +60,8 @@ type LaborerProfile = {
   years_experience?: number | null
   bio?: string
   max_travel_distance_km?: number | null
+  profile_completeness?: number
+  has_avatar?: boolean
 }
 
 type SkillOption = { id: number; skill_name: string; category?: string }
@@ -127,28 +137,46 @@ const LaborerDashboard = () => {
       setError(null)
 
       try {
-        if (!user) return;
+        if (!user || !user.id) return;
 
-        const [profData, jobsData, appliedData, historyData, skillsOptions] = await Promise.all([
+        const [
+          profData, 
+          jobsData, 
+          appliedData, 
+          historyData, 
+          skillsOptions, 
+          dashboardData // <--- This was already here and is correct
+        ] = await Promise.all([
           apiFetch<LaborerProfile[]>(`laborers/?user_id=${user.id}`),
           apiFetch<{ results: ApiJob[] }>("jobs/?ordering=-created_at&limit=10"),
           apiFetch<{ results: AppliedJob[] }>("applications/"),
           apiFetch<{ results: WorkHistoryItem[] }>("work-history/"),
           apiFetch<{ results: SkillOption[] }>("skills/?ordering=skill_name"),
+          apiFetch<{ unread_notifications: number }>("dashboard/"), 
         ])
         
         const userProfile = profData?.[0] || null
         if (userProfile) {
           setProfile(userProfile)
-          setSkillsList(userProfile.skills || [])
+          setSkillsList(userProfile.skills || []) // This now works due to backend serializer fix
           setIsAvailable(userProfile.is_available ?? true)
+          setProfileCompleteness(userProfile.profile_completeness || 0)
+          
+          const localAvatar = localStorage.getItem("laborer-avatar")
+          if (localAvatar) setAvatarUrl(localAvatar)
+          if (localAvatar && !userProfile.has_avatar) {
+            apiFetch(`laborers/${user.id}/`, {
+              method: "PATCH",
+              body: JSON.stringify({ has_avatar: true }),
+            }).then((updated) => setProfile(updated as LaborerProfile))
+          }
         }
         
         setJobs(jobsData?.results || [])
         setAppliedJobs(appliedData?.results || [])
         setWorkHistory(historyData?.results || [])
         setAllSkills(skillsOptions?.results || [])
-
+        setUnreadCount(dashboardData?.unread_notifications || 0) // <--- Set unread count
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to load dashboard data.")
         console.error("[v0] Dashboard init error:", e)
@@ -159,26 +187,21 @@ const LaborerDashboard = () => {
     init()
   }, [user])
   
-  useEffect(() => {
-    recomputeCompleteness(profile, skillsList, Boolean(avatarUrl))
-  }, [profile, skillsList, avatarUrl])
-
-  useEffect(() => {
-    setUnreadCount(notifications.filter((n) => !n.is_read).length)
-  }, [notifications])
+  // --- REMOVED BUGGY USEEFFECT ---
+  // The useEffect listening to [notifications] was causing the unreadCount
+  // to reset to 0 on load. Removing it ensures the count from the 'dashboard'
+  // API call is used, which is what shows the red dot.
 
   // --- Functions ---
-  const recomputeCompleteness = (p?: LaborerProfile | null, skills?: LaborerSkill[] | null, hasAvatar?: boolean) => {
-    const total = 6
-    let score = 0
-    if (p?.bio && p.bio.trim().length > 0) score++
-    if (p?.experience_level && p.experience_level !== "") score++
-    if (typeof p?.years_experience === "number" && p.years_experience > 0) score++
-    if (p?.hourly_rate !== null && p?.hourly_rate !== undefined && String(p.hourly_rate) !== "") score++
-    if (Array.isArray(skills) && skills.length > 0) score++
-    if (hasAvatar) score++
-    const percent = Math.min(100, Math.round((score / total) * 100))
-    setProfileCompleteness(percent)
+  
+  const fetchProfileProgress = async () => {
+    if (!user?.id) return
+    try {
+      const data = await apiFetch<{ profile_completeness: number }>(`laborers/${user.id}/progress/`)
+      setProfileCompleteness(data.profile_completeness)
+    } catch (e) {
+      console.error("Could not fetch progress", e)
+    }
   }
 
   const handleAvailabilityChange = async (val: boolean) => {
@@ -219,6 +242,11 @@ const LaborerDashboard = () => {
         body: JSON.stringify(payload),
       })
       setProfile((p) => ({ ...(p || {}), ...updated }))
+      
+      if (updated.profile_completeness !== undefined) {
+          setProfileCompleteness(updated.profile_completeness)
+      }
+
       toast.success("Profile updated successfully.")
       setEditOpen(false)
     } catch (e) {
@@ -231,6 +259,13 @@ const LaborerDashboard = () => {
   
   const handleAddSkill = async () => {
     if (!newSkillId) return
+    
+    const skillAlreadyAdded = skillsList.some((s) => s.skill.id === Number(newSkillId))
+    if (skillAlreadyAdded) {
+      toast.error("You have already added that skill.")
+      return
+    }
+
     setSaving(true)
     try {
       const created = await apiFetch<LaborerSkill>(`laborer-skills/`, {
@@ -241,7 +276,17 @@ const LaborerDashboard = () => {
           years_experience: Number(newSkillYears || 0),
         }),
       })
-      setSkillsList((s) => [created, ...s])
+      // We must construct the full skill object for the UI
+      const newSkillFromOptions = allSkills.find(s => s.id === Number(newSkillId))
+      if (newSkillFromOptions) {
+        setSkillsList((s) => [{
+          ...created, 
+          skill: { id: newSkillFromOptions.id, skill_name: newSkillFromOptions.skill_name } 
+        }, ...s])
+      }
+      
+      await fetchProfileProgress()
+
       setNewSkillId("")
       setNewSkillProf("BEGINNER")
       setNewSkillYears("0")
@@ -259,6 +304,7 @@ const LaborerDashboard = () => {
     try {
       await apiFetch(`laborer-skills/${id}/`, { method: "DELETE" })
       setSkillsList((s) => s.filter((x) => x.id !== id))
+      await fetchProfileProgress()
       toast.success("Skill removed.")
     } catch (e) {
       toast.error("Could not remove skill.")
@@ -271,6 +317,8 @@ const LaborerDashboard = () => {
     try {
       const data = await apiFetch<{ results: NotificationItem[] }>(`notifications/`)
       setNotifications(data.results || [])
+      // We don't need to set unreadCount here, 
+      // as it's handled by handleOpenNotifications
     } catch (e) {
       console.error("[v0] load notifications error", e)
     }
@@ -278,16 +326,51 @@ const LaborerDashboard = () => {
 
   const handleOpenNotifications = async (open: boolean) => {
     setNotifOpen(open)
-    if (open) await loadNotifications()
+    if (open) {
+      // Load notifications
+      await loadNotifications()
+      // Immediately mark them as read on the backend
+      if (unreadCount > 0) {
+        setUnreadCount(0) // Optimistic UI update for the red dot
+        try {
+          await apiFetch(`notifications/mark_all_read/`, { method: "POST" })
+        } catch (e) {
+          console.error("Could not mark all as read", e)
+        }
+      }
+    }
   }
 
   const handleMarkAllRead = async () => {
+    if (notifications.every(n => n.is_read)) return; // Already all read
     try {
       await apiFetch(`notifications/mark_all_read/`, { method: "POST" })
-      await loadNotifications()
+      // Optimistic UI update
+      setNotifications(currentNotifs => 
+        currentNotifs.map(n => ({ ...n, is_read: true }))
+      );
+      setUnreadCount(0)
       toast.success("All notifications marked as read.")
     } catch (e) {
       toast.error("Could not mark all as read.")
+      await loadNotifications(); // Rollback on error
+    }
+  }
+
+  const handleMarkOneRead = async (id: number) => {
+    const notif = notifications.find(n => n.id === id);
+    if (!notif || notif.is_read) return;
+
+    try {
+      // Optimistic UI update
+      setNotifications(currentNotifs => 
+        currentNotifs.map(n => n.id === id ? { ...n, is_read: true } : n)
+      );
+      
+      await apiFetch(`notifications/${id}/mark_read/`, { method: "POST" });
+    } catch (e) {
+      toast.error("Failed to mark notification as read.");
+      await loadNotifications(); // Rollback UI
     }
   }
 
@@ -304,6 +387,17 @@ const LaborerDashboard = () => {
         })
         localStorage.setItem("laborer-avatar", b64)
         setAvatarUrl(b64)
+        
+        if (user?.id) {
+            const updated = await apiFetch<LaborerProfile>(`laborers/${user.id}/`, {
+                method: "PATCH",
+                body: JSON.stringify({ has_avatar: true }),
+            })
+            setProfile((p) => ({ ...(p || {}), ...updated }))
+            if (updated.profile_completeness !== undefined) {
+                setProfileCompleteness(updated.profile_completeness)
+            }
+        }
         toast.success("Profile image updated.")
     } catch (error) {
         toast.error("Failed to upload image.")
@@ -311,6 +405,21 @@ const LaborerDashboard = () => {
   }
 
   const initials = (user?.username || "U").slice(0, 2).toUpperCase()
+
+  // --- ADDED THIS HELPER FUNCTION ---
+  const getJobStatusVariant = (status: JobStatus): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case "OPEN":
+        return "default" // This is green/primary
+      case "IN_PROGRESS":
+        return "secondary" // This is gray
+      case "CLOSED":
+      case "CANCELLED":
+        return "destructive" // This is red
+      default:
+        return "outline"
+    }
+  }
 
   if (loading.page) {
     return (
@@ -325,17 +434,18 @@ const LaborerDashboard = () => {
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">Laborer Dashboard</h1>
+          
           <Button variant="ghost" size="icon" onClick={() => handleOpenNotifications(true)} className="relative">
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
               <span
                 aria-label={`${unreadCount} unread notifications`}
-                className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary"
               >
-                {unreadCount}
               </span>
             )}
           </Button>
+          
         </div>
       </nav>
 
@@ -350,24 +460,47 @@ const LaborerDashboard = () => {
                 <TabsTrigger value="history"><History className="w-4 h-4 mr-2"/>Work History</TabsTrigger>
               </TabsList>
 
+              {/* --- UPDATED THIS SECTION --- */}
               <TabsContent value="new" className="space-y-4">
                 {jobs.map((job) => (
                   <Card key={job.id}>
                     <CardHeader>
-                      <CardTitle>{job.job_title}</CardTitle>
+                      <div className="flex justify-between items-start">
+                        <CardTitle>{job.job_title}</CardTitle>
+                        <Badge variant={getJobStatusVariant(job.job_status)} className="ml-2 flex-shrink-0">
+                          {job.job_status.replace(/_/g, ' ')}
+                        </Badge>
+                      </div>
                       <CardDescription>{job.employer_name} - {job.location}</CardDescription>
                     </CardHeader>
                     <CardContent className="flex justify-between items-center">
                       <div className="text-lg font-bold text-primary">${job.budget_max}/hr</div>
-                      {job.has_applied ? (
-                         <Button disabled variant="outline">Already Applied</Button>
-                      ) : (
-                         <Button asChild><Link to={`/apply/${job.id}`}>Apply Now</Link></Button>
-                      )}
+                      
+                      {/* This logic now checks status AND if applied */}
+                      {(() => {
+                        if (job.job_status !== 'OPEN') {
+                          return (
+                            <Button disabled variant="outline">
+                              {job.job_status.replace(/_/g, ' ')}
+                            </Button>
+                          )
+                        }
+                        if (job.has_applied) {
+                          return (
+                            <Button disabled variant="outline">Already Applied</Button>
+                          )
+                        }
+                        return (
+                          <Button asChild>
+                            <Link to={`/jobs/${job.id}/apply`}>Apply Now</Link>
+                          </Button>
+                        )
+                      })()}
                     </CardContent>
                   </Card>
                 ))}
               </TabsContent>
+              {/* --- END OF UPDATE --- */}
 
               <TabsContent value="applied">
                  <Card>
@@ -551,6 +684,7 @@ const LaborerDashboard = () => {
                 <SelectContent>
                   <SelectItem value="JUNIOR">Junior</SelectItem>
                   <SelectItem value="MID">Mid-level</SelectItem>
+                  {/* --- THIS IS THE FIX for the typo --- */}
                   <SelectItem value="SENIOR">Senior</SelectItem>
                   <SelectItem value="EXPERT">Expert</SelectItem>
                 </SelectContent>
@@ -663,7 +797,7 @@ const LaborerDashboard = () => {
                         </div>
                       </div>
                       <Button variant="outline" size="sm" onClick={() => handleRemoveSkill(s.id)} disabled={saving}>
-                        Remove
+                        Remove ❌
                       </Button>
                     </li>
                   ))}
@@ -682,14 +816,22 @@ const LaborerDashboard = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex justify-end">
-              <Button onClick={handleMarkAllRead}>Mark all read</Button>
+              <Button onClick={handleMarkAllRead} disabled={notifications.every(n => n.is_read)}>
+                Mark all read
+              </Button>
             </div>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {notifications.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">You're all caught up.</p>
               ) : (
                 notifications.map((n) => (
-                  <div key={n.id} className={`border rounded-md p-3 ${!n.is_read ? 'bg-muted/50' : ''}`}>
+                  <div 
+                    key={n.id} 
+                    className={`border rounded-md p-3 transition-colors ${
+                      !n.is_read ? 'bg-muted/50 cursor-pointer hover:bg-muted' : ''
+                    }`}
+                    onClick={() => handleMarkOneRead(n.id)}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{n.notification_type.replace(/_/g, " ")}</span>
                       {!n.is_read && <Badge variant="destructive">New</Badge>}
@@ -710,3 +852,4 @@ const LaborerDashboard = () => {
 }
 
 export default LaborerDashboard
+

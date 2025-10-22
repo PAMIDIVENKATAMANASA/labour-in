@@ -104,16 +104,54 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class SkilledLaborerProfileSerializer(serializers.ModelSerializer):
     """Serializer for SkilledLaborer profile"""
     user = UserUpdateSerializer() # Use the new writable serializer
-    skills = LaborerSkillsSerializer(many=True, read_only=True)
-    
+    skills = LaborerSkillsSerializer(many=True, read_only=True, source='laborerskills_set')    
     class Meta:
         model = SkilledLaborer
         fields = (
             'user', 'experience_level', 'is_available', 'hourly_rate', 
-            'years_experience', 'bio', 'skills', 'max_travel_distance_km'
+            'years_experience', 'bio', 'skills', 'max_travel_distance_km',
+            'has_avatar', 'profile_completeness'
         )
-        # Note: We are no longer using read_only_fields here because we handle it in the update method.
+        read_only_fields = ('profile_completeness',) 
 
+    # --- ADD THIS NEW STATIC METHOD ---
+    # This is our new "professional" progress logic
+    @staticmethod
+    def recalculate_completeness(laborer_instance):
+        if not laborer_instance:
+            return 0
+            
+        total_points = 8  # We now check 8 items
+        score = 0
+        
+        # 1. Check user fields
+        if laborer_instance.user.first_name and laborer_instance.user.first_name.strip():
+            score += 1
+        if laborer_instance.user.phone_number and laborer_instance.user.phone_number.strip():
+            score += 1
+            
+        # 2. Check laborer fields
+        if laborer_instance.bio and laborer_instance.bio.strip():
+            score += 1
+        if laborer_instance.experience_level:
+            score += 1
+        # We check if it's set (even 0 is valid)
+        if laborer_instance.years_experience is not None: 
+            score += 1
+        if laborer_instance.hourly_rate is not None:
+            score += 1
+            
+        # 3. Check related fields
+        if laborer_instance.has_avatar:
+            score += 1
+        # Use .count() for a fresh database check
+        if laborer_instance.laborerskills_set.count() > 0:
+            score += 1
+        
+        percent = min(100, round((score / total_points) * 100))
+        return percent
+
+    # --- REPLACE your old 'update' method with this ---
     def update(self, instance, validated_data):
         # Handle nested user object update
         user_data = validated_data.pop('user', {})
@@ -121,11 +159,25 @@ class SkilledLaborerProfileSerializer(serializers.ModelSerializer):
         if user_serializer.is_valid(raise_exception=True):
             user_serializer.save()
 
+        # Handle has_avatar field
+        if 'has_avatar' in validated_data:
+            instance.has_avatar = validated_data.pop('has_avatar')
+
         # Handle SkilledLaborer object update
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
         instance.save()
+        
+        # --- THIS IS THE CRITICAL FIX ---
+        # We MUST refresh the instance from the database
+        # to get the fresh 'user' data we just saved.
+        instance.refresh_from_db()
+        
+        # Recalculate completeness using our new static method
+        instance.profile_completeness = self.recalculate_completeness(instance)
+        instance.save(update_fields=['profile_completeness'])
+        
         return instance
 
 
@@ -252,6 +304,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         
         # Add custom claims
+        token['id'] = user.id
         token['username'] = user.username
         token['user_type'] = user.user_type
         token['is_active'] = user.is_active
