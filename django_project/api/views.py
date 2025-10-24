@@ -27,8 +27,6 @@ from .serializers import (
     JobApplicationSerializer, JobApplicationListSerializer,
     WorkHistorySerializer, NotificationSerializer,
     CustomTokenObtainPairSerializer
- # <-- Make sure this is imported
-  
 )
 from .permissions import (
     IsOwnerOrReadOnly, IsEmployerOrReadOnly, IsLaborerOrReadOnly,
@@ -65,7 +63,6 @@ class UserProfileViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Users can only see their own profile
         if self.request.user.user_type == 'ADMIN':
             return User.objects.all()
         return User.objects.filter(id=self.request.user.id)
@@ -88,7 +85,6 @@ class EmployerProfileViewSet(viewsets.ModelViewSet):
             serializer.save(user=self.request.user)
 
 
-# UPDATED: We need a permission class that allows a user to edit their own profile
 class IsSelf(BasePermission):
     def has_object_permission(self, request, view, obj):
         return obj.user == request.user
@@ -98,15 +94,12 @@ class SkilledLaborerProfileViewSet(viewsets.ModelViewSet):
     serializer_class = SkilledLaborerProfileSerializer
     
     def get_permissions(self):
-        # Admins can do anything. The user can update their own profile.
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsSelf()]
         return [IsAuthenticated()]
         
     def get_queryset(self):
         user = self.request.user
-        
-        # We add .prefetch_related() to both querysets
         
         if user.user_type == 'ADMIN':
             return SkilledLaborer.objects.select_related('user').prefetch_related(
@@ -121,23 +114,19 @@ class SkilledLaborerProfileViewSet(viewsets.ModelViewSet):
         return SkilledLaborer.objects.none()
 
     def get_object(self):
-        # Override to allow PATCH by user ID for convenience from frontend
         queryset = self.get_queryset()
         pk = self.kwargs.get('pk')
         if pk:
-             # Try to get by user_id first, which is what the frontend uses
             obj = queryset.filter(user_id=pk).first()
             if obj:
                 self.check_object_permissions(self.request, obj)
                 return obj
         
-        # Fallback for standard /api/laborers/{id}/ (which we don't use, but is good practice)
         return super().get_object()
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         
-        # Handle the ?user_id= query from your frontend init()
         user_id = request.query_params.get('user_id')
         if user_id:
             queryset = queryset.filter(user_id=user_id)
@@ -150,22 +139,15 @@ class SkilledLaborerProfileViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         
-        # The .save() method calls the serializer's .update() method
-        # and returns the FINAL, updated instance (with new progress).
         updated_instance = serializer.save() 
         
-        # The original 'serializer.data' is now stale.
-        # We must create a NEW serializer with the final instance
-        # to get the fresh data to send back to the frontend.
         fresh_serializer = self.get_serializer(updated_instance)
 
         return Response(fresh_serializer.data, status=status.HTTP_200_OK)
     
-    # ADD THIS NEW ACTION
     @action(detail=True, methods=['get'])
     def progress(self, request, pk=None):
         laborer = self.get_object()
-        # We can trigger a recalculate on-demand, just to be 100% safe
         laborer.profile_completeness = SkilledLaborerProfileSerializer.recalculate_completeness(laborer)
         laborer.save(update_fields=['profile_completeness'])
         return Response({'profile_completeness': laborer.profile_completeness})
@@ -174,7 +156,6 @@ class SkillViewSet(viewsets.ModelViewSet):
     """Admin-only ViewSet for Skills"""
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer
-    # Allow read for any; restrict writes to admin
     def get_permissions(self):
         if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
             return [AllowAny()]
@@ -198,7 +179,6 @@ class LaborerSkillsViewSet(viewsets.ModelViewSet):
             return LaborerSkills.objects.filter(laborer__user=self.request.user)
         return LaborerSkills.objects.none()
 
-    # ADD THIS NEW create method
     def create(self, request, *args, **kwargs):
         if request.user.user_type != 'LABORER':
             return Response({'error': 'Only laborers can add skills'}, status=status.HTTP_403_FORBIDDEN)
@@ -216,21 +196,17 @@ class LaborerSkillsViewSet(viewsets.ModelViewSet):
 
         serializer.save(laborer=laborer) 
         
-        # Recalculate progress using our new static method
         laborer.profile_completeness = SkilledLaborerProfileSerializer.recalculate_completeness(laborer)
         laborer.save(update_fields=['profile_completeness'])
         
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    # --- REPLACE 'destroy' method ---
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         laborer = instance.laborer
         self.perform_destroy(instance)
         
-        # Recalculate progress using our new static method
-        # We refresh_from_db() to get the new skill count
         laborer.refresh_from_db() 
         laborer.profile_completeness = SkilledLaborerProfileSerializer.recalculate_completeness(laborer)
         laborer.save(update_fields=['profile_completeness'])
@@ -239,7 +215,6 @@ class LaborerSkillsViewSet(viewsets.ModelViewSet):
 
 class JobPostingViewSet(viewsets.ModelViewSet):
     """ViewSet for Job Postings with employer restrictions"""
-    # Allow read for any; writes restricted by custom permission
     permission_classes = [IsEmployerOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['work_type', 'job_status', 'employer__business_type']
@@ -253,22 +228,38 @@ class JobPostingViewSet(viewsets.ModelViewSet):
         return JobPostingSerializer
     
     def get_permissions(self):
-        # Allow unauthenticated GET/HEAD/OPTIONS for public listings
         if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
             return [AllowAny()]
         return super().get_permissions()
 
     def get_queryset(self):
-        return JobPosting.objects.select_related('employer', 'employer__user').all()
+        queryset = JobPosting.objects.select_related('employer', 'employer__user').all()
+        user = self.request.user
+        
+        my_jobs = self.request.query_params.get('my_jobs', 'false').lower() == 'true'
+        
+        if (self.action == 'list' and 
+            user.is_authenticated and 
+            user.user_type == 'EMPLOYER' and 
+            my_jobs):
+            
+            if hasattr(user, 'employer'):
+                return queryset.filter(employer=user.employer)
+            else:
+                return queryset.none() 
+        
+        return queryset
     
     def perform_create(self, serializer):
-        # Ensure only employers can create job postings
         if self.request.user.user_type != 'EMPLOYER':
             raise PermissionError("Only employers can create job postings")
+        
+        if not hasattr(self.request.user, 'employer'):
+            Employer.objects.create(user=self.request.user, company_name=f"{self.request.user.username}'s Company")
+            
         serializer.save()
     
     def perform_update(self, serializer):
-        # Only job owner can update
         employer_profile = self.get_object().employer
         if employer_profile.user != self.request.user:
             raise PermissionError("You can only edit your own job postings")
@@ -279,6 +270,14 @@ class JobPostingViewSet(viewsets.ModelViewSet):
         """Get applications for a specific job posting"""
         job_posting = self.get_object()
         
+        # --- THIS IS THE FIX ---
+        # We check for authentication *before* checking user_type
+        # This stops the 'AnonymousUser' crash.
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication credentials were not provided.'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+        # --- END FIX ---
+            
         if (request.user.user_type == 'EMPLOYER' and 
             job_posting.employer.user == request.user):
             applications = job_posting.jobapplication_set.select_related(
@@ -314,14 +313,18 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         if user.user_type == 'LABORER':
-            return JobApplication.objects.filter(
-                laborer__user=user
-            ).select_related('job_posting', 'laborer', 'laborer__user')
+            if hasattr(user, 'skilledlaborer'):
+                return JobApplication.objects.filter(
+                    laborer=user.skilledlaborer
+                ).select_related('job_posting', 'laborer', 'laborer__user')
+            return JobApplication.objects.none()
         
         elif user.user_type == 'EMPLOYER':
-            return JobApplication.objects.filter(
-                job_posting__employer__user=user
-            ).select_related('job_posting', 'laborer', 'laborer__user')
+            if hasattr(user, 'employer'):
+                return JobApplication.objects.filter(
+                    job_posting__employer=user.employer
+                ).select_related('job_posting', 'laborer', 'laborer__user')
+            return JobApplication.objects.none()
         
         elif user.user_type in ['ADMIN', 'COORDINATOR']:
             return JobApplication.objects.select_related(
@@ -333,12 +336,13 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.user_type != 'LABORER':
             raise PermissionError("Only skilled laborers can apply for jobs")
+        
+        if not hasattr(self.request.user, 'skilledlaborer'):
+            SkilledLaborer.objects.create(user=self.request.user)
+            
         serializer.save()
 
     def perform_update(self, serializer):
-        # All logic (notifications, work history) has been
-        # moved to the JobApplication.save() method in models.py
-        # This is now much cleaner and more robust.
         serializer.save()
     
 
@@ -360,14 +364,18 @@ class WorkHistoryViewSet(viewsets.ModelViewSet):
             ).all()
         
         elif user.user_type == 'LABORER':
-            return WorkHistory.objects.filter(
-                laborer__user=user
-            ).select_related('job_posting', 'laborer', 'laborer__user', 'employer')
+            if hasattr(user, 'skilledlaborer'):
+                return WorkHistory.objects.filter(
+                    laborer=user.skilledlaborer
+                ).select_related('job_posting', 'laborer', 'laborer__user', 'employer')
+            return WorkHistory.objects.none()
         
         elif user.user_type == 'EMPLOYER':
-            return WorkHistory.objects.filter(
-                employer__user=user
-            ).select_related('job_posting', 'laborer', 'laborer__user', 'employer')
+            if hasattr(user, 'employer'):
+                return WorkHistory.objects.filter(
+                    employer=user.employer
+                ).select_related('job_posting', 'laborer', 'laborer__user', 'employer')
+            return WorkHistory.objects.none()
         
         return WorkHistory.objects.none()
 
@@ -402,7 +410,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Notification marked as read'})
 
 
-# Additional utility views
 class SearchView(APIView):
     """Generic search endpoint"""
     def get_permissions(self):
@@ -453,36 +460,57 @@ class DashboardView(APIView):
         data = {}
         
         if user.user_type == 'EMPLOYER':
-            employer = user.employer
-            data.update({
-                'total_jobs': JobPosting.objects.filter(employer=employer).count(),
-                'active_jobs': JobPosting.objects.filter(employer=employer, job_status='OPEN').count(),
-                'total_applications': JobApplication.objects.filter(
-                    job_posting__employer=employer
-                ).count(),
-                'pending_applications': JobApplication.objects.filter(
-                    job_posting__employer=employer,
-                    application_status='PENDING'
-                ).count(),
-            })
+            if hasattr(user, 'employer'):
+                employer = user.employer
+                data.update({
+                    'total_jobs': JobPosting.objects.filter(employer=employer).count(),
+                    'active_jobs': JobPosting.objects.filter(employer=employer, job_status='OPEN').count(),
+                    'total_applications': JobApplication.objects.filter(
+                        job_posting__employer=employer
+                    ).count(),
+                    'pending_applications': JobApplication.objects.filter(
+                        job_posting__employer=employer,
+                        application_status='PENDING'
+                    ).count(),
+                    'completed_projects': JobPosting.objects.filter(
+                        employer=employer, 
+                        job_status__in=['COMPLETED', 'CLOSED']
+                    ).count(),
+                })
+            else:
+                data.update({
+                    'total_jobs': 0,
+                    'active_jobs': 0,
+                    'total_applications': 0,
+                    'pending_applications': 0,
+                    'completed_projects': 0,
+                })
         
-        elif user.user_type == 'LABORER' and hasattr(user, 'skilledlaborer'):
-            laborer = user.skilledlaborer
-            data.update({
-                'total_applications': JobApplication.objects.filter(laborer=laborer).count(),
-                'accepted_applications': JobApplication.objects.filter(
-                    laborer=laborer,
-                    application_status='ACCEPTED'
-                ).count(),
-                'completed_works': WorkHistory.objects.filter(
-                    laborer=laborer,
-                    work_status='COMPLETED'
-                ).count(),
-                'average_rating': WorkHistory.objects.filter(
-                    laborer=laborer,
-                    employer_rating__isnull=False
-                ).aggregate(avg_rating=Avg('employer_rating'))['avg_rating'] or 0,
-            })
+        elif user.user_type == 'LABORER':
+            if hasattr(user, 'skilledlaborer'):
+                laborer = user.skilledlaborer
+                data.update({
+                    'total_applications': JobApplication.objects.filter(laborer=laborer).count(),
+                    'accepted_applications': JobApplication.objects.filter(
+                        laborer=laborer,
+                        application_status='ACCEPTED'
+                    ).count(),
+                    'completed_works': WorkHistory.objects.filter(
+                        laborer=laborer,
+                        work_status='COMPLETED'
+                    ).count(),
+                    'average_rating': WorkHistory.objects.filter(
+                        laborer=laborer,
+                        employer_rating__isnull=False
+                    ).aggregate(avg_rating=Avg('employer_rating'))['avg_rating'] or 0,
+                })
+            else:
+                data.update({
+                    'total_applications': 0,
+                    'accepted_applications': 0,
+                    'completed_works': 0,
+                    'average_rating': 0,
+                })
         
         elif user.user_type in ['ADMIN', 'COORDINATOR']:
             data.update({

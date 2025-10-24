@@ -195,15 +195,25 @@ class JobPostingSerializer(serializers.ModelSerializer):
                  'end_date', 'job_status', 'created_at', 'updated_at',
                  'employer_name', 'employer_verified', 'employer_type', 'creator_id',
                  'employer')
+        
+        # --- THIS IS THE FIX ---
+        # Add 'employer' to read_only_fields
         read_only_fields = ('id', 'created_at', 'updated_at', 
-                          'employer_name', 'employer_verified', 'employer_type', 'creator_id')
+                          'employer_name', 'employer_verified', 'employer_type', 'creator_id',
+                          'employer') # <--- 'employer' IS NOW HERE
+        # --- END FIX ---
     
     def create(self, validated_data):
         user = self.context['request'].user
         try:
             employer = user.employer
         except AttributeError:
-            raise serializers.ValidationError("Only employers can create job postings")
+            # This logic is good, but we should also auto-create one
+            # if the user is an EMPLOYER but has no profile yet.
+            if getattr(user, "user_type", None) == "EMPLOYER":
+                employer = Employer.objects.create(user=user, company_name=f"{user.username}'s Company")
+            else:
+                raise serializers.ValidationError("Only employers can create job postings")
         
         validated_data['employer'] = employer
         return super().create(validated_data)
@@ -238,9 +248,8 @@ class JobApplicationSerializer(serializers.ModelSerializer):
         try:
             laborer = user.skilledlaborer
         except AttributeError:
-            # If user is a LABORER but has no profile yet, create a basic one
             if getattr(user, "user_type", None) == "LABORER":
-                laborer = SkilledLaborer.objects.create(user=user)  # defaults applied
+                laborer = SkilledLaborer.objects.create(user=user)
             else:
                 raise serializers.ValidationError("Only skilled laborers can apply for jobs")
         
