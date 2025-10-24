@@ -254,26 +254,7 @@ const EmployerDashboard = () => {
             </Card>
 
             {/* Quick Actions */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  size="lg"
-                  onClick={() => navigate("/dashboard/employer/applicants")}
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  View All Applicants
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="lg" disabled>
-                  <DollarSign className="mr-2 h-4 w-4" />
-                  Manage Payments (soon)
-                </Button>
-              </CardContent>
-            </Card>
+            
 
             {/* Overview Stats */}
             <Card className="shadow-card">
