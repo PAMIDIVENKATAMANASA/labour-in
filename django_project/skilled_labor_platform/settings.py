@@ -106,11 +106,15 @@ if os.getenv("MYSQL_NAME"):
     }
 else:
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": 'skilled_labor_db',  # e.g., 'skilled_labor_db'
+        "USER": 'root',      # e.g., 'root'
+        "PASSWORD": 'secret',  # e.g., 'password123'
+        "HOST": '127.0.0.1',                # Usually 'localhost' or '127.0.0.1'
+        "PORT": '3306',                     # Default MySQL port
     }
+}
 
 
 # Password validation
