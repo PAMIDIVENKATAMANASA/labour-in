@@ -516,16 +516,49 @@ class DashboardView(APIView):
                     'average_rating': 0,
                 })
         
-        elif user.user_type in ['ADMIN', 'COORDINATOR']:
-           # --- MODIFIED LOGIC START ---
+        # In django_project/api/views.py (around line 520, inside DashboardView.get)
+
+        # ... (Employer and Laborer logic remains the same)
+
+        # --- COORDINATOR LOGIC: Focus on Support/Oversight ---
+        elif user.user_type == 'COORDINATOR':
+            # 1. Disputes: WorkHistory flagged for review
+            disputed_projects_count = WorkHistory.objects.filter(
+                work_status='DISPUTED'
+            ).count()
             
-            # We filter Laborers by checking the is_active status on the related User model.
-            # ASSUMPTION: A laborer is "pending approval" if their account is not active.
+            # 2. Employer Verification: Profiles awaiting approval (important for support role)
+            pending_employer_verification_count = Employer.objects.filter(
+                verification_status='PENDING'
+            ).count()
+            
+            # 3. Long-Pending Applications: Applications stuck in PENDING for over 7 days 
+            # (Requires coordinator intervention to nudge employer/laborer)
+            seven_days_ago = timezone.now() - timezone.timedelta(days=7)
+            long_pending_applications_count = JobApplication.objects.filter(
+                application_status='PENDING',
+                applied_at__lt=seven_days_ago 
+            ).count()
+            
+            data.update({
+                'total_users': User.objects.count(),
+                'total_jobs': JobPosting.objects.count(),
+                'total_laborers': SkilledLaborer.objects.count(),
+                'total_employers': Employer.objects.count(),
+
+                # NEW COORDINATOR-SPECIFIC STATS
+                'disputed_projects': disputed_projects_count,
+                'pending_employer_verification': pending_employer_verification_count,
+                'long_pending_applications': long_pending_applications_count,
+            })
+
+        # --- ADMIN LOGIC: Focus on System Management/Overall Health ---
+        elif user.user_type == 'ADMIN':
             pending_laborers_count = SkilledLaborer.objects.filter(
                 user__is_active=False, 
                 user__user_type='LABORER'
             ).count()
-
+            
             data.update({
                 'total_users': User.objects.count(),
                 'total_jobs': JobPosting.objects.count(),
@@ -536,13 +569,14 @@ class DashboardView(APIView):
                 'total_employers': Employer.objects.count(),
                 'total_coordinators': Coordinator.objects.count(),
                 
-                # USE THE NEWLY CALCULATED PENDING COUNT
-                'pending_approvals': pending_laborers_count,
+                'pending_approvals': pending_laborers_count, # Pending Laborer Approvals
             })
-        
+        # --- END ADMIN/COORDINATOR SEPARATION ---
+
         data['unread_notifications'] = Notification.objects.filter(
             recipient=user,
             is_read=False
         ).count()
         
+        return Response(data)
         return Response(data)
