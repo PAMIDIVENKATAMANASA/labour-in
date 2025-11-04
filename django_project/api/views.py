@@ -459,6 +459,10 @@ class DashboardView(APIView):
         user = request.user
         data = {}
         
+        if user.user_type not in ['ADMIN', 'COORDINATOR', 'EMPLOYER', 'LABORER']:
+            return Response({'detail': 'You do not have permission to access a dashboard.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        
         if user.user_type == 'EMPLOYER':
             if hasattr(user, 'employer'):
                 employer = user.employer
@@ -513,11 +517,27 @@ class DashboardView(APIView):
                 })
         
         elif user.user_type in ['ADMIN', 'COORDINATOR']:
+           # --- MODIFIED LOGIC START ---
+            
+            # We filter Laborers by checking the is_active status on the related User model.
+            # ASSUMPTION: A laborer is "pending approval" if their account is not active.
+            pending_laborers_count = SkilledLaborer.objects.filter(
+                user__is_active=False, 
+                user__user_type='LABORER'
+            ).count()
+
             data.update({
                 'total_users': User.objects.count(),
                 'total_jobs': JobPosting.objects.count(),
                 'total_applications': JobApplication.objects.count(),
                 'active_jobs': JobPosting.objects.filter(job_status='OPEN').count(),
+                
+                'total_laborers': SkilledLaborer.objects.count(),
+                'total_employers': Employer.objects.count(),
+                'total_coordinators': Coordinator.objects.count(),
+                
+                # USE THE NEWLY CALCULATED PENDING COUNT
+                'pending_approvals': pending_laborers_count,
             })
         
         data['unread_notifications'] = Notification.objects.filter(

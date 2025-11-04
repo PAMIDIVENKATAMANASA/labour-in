@@ -15,7 +15,7 @@ import FindWork from "./pages/FindWork"
 import HireTalent from "./pages/HireTalent"
 import About from "./pages/About"
 import ApplyJob from "./pages/ApplyJob"
-
+import ProtectedRoute from "./components/ProtectedRoute" // <-- NEW IMPORT
 // --- NEW IMPORTS ---
 import EmployerJobDetails from "./pages/EmployerJobDetails"
 import EmployerApplicants from "./pages/EmployerApplicants"
@@ -46,6 +46,25 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/jobs/:id/apply" element={<ApplyJob />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          {/* --- PROTECTED ROUTES GROUP --- */}
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            <Route path="/dashboard/admin" element={<AdminDashboard />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['COORDINATOR']} />}>
+            <Route path="/dashboard/coordinator" element={<CoordinatorDashboard />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['EMPLOYER']} />}>
+            <Route path="/dashboard/employer" element={<EmployerDashboard />} />
+            <Route path="/dashboard/employer/jobs/:id" element={<EmployerJobDetails />} />
+            <Route path="/dashboard/employer/applicants" element={<EmployerApplicants />} />
+          </Route>
+          
+          <Route element={<ProtectedRoute allowedRoles={['LABORER']} />}>
+            <Route path="/dashboard/laborer" element={<LaborerDashboard />} />
+          </Route>
+          {/* --- END PROTECTED ROUTES GROUP --- */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
