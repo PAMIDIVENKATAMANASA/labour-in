@@ -14,8 +14,10 @@ import Signup from "./pages/Signup"
 import FindWork from "./pages/FindWork"
 import HireTalent from "./pages/HireTalent"
 import About from "./pages/About"
+import AdminSkillManagementPage from "./pages/AdminSkillManagementPage"
+import AdminUserManagementPage from "./pages/AdminUserManagementPage"
 import ApplyJob from "./pages/ApplyJob"
-import ProtectedRoute from "./components/ProtectedRoute" // <-- NEW IMPORT
+import ProtectedRoute from "./components/ProtectedRoute"
 // --- NEW IMPORTS ---
 import EmployerJobDetails from "./pages/EmployerJobDetails"
 import EmployerApplicants from "./pages/EmployerApplicants"
@@ -30,27 +32,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* --- PUBLIC & GENERAL ROUTES --- */}
           <Route path="/" element={<Index />} />
-          <Route path="/dashboard/laborer" element={<LaborerDashboard />} />
-          <Route path="/dashboard/employer" element={<EmployerDashboard />} />
-          {/* --- NEW ROUTES --- */}
-          <Route path="/dashboard/employer/jobs/:id" element={<EmployerJobDetails />} />
-          <Route path="/dashboard/employer/applicants" element={<EmployerApplicants />} />
-          {/* --- END NEW ROUTES --- */}
-          <Route path="/dashboard/admin" element={<AdminDashboard />} />
-          <Route path="/dashboard/coordinator" element={<CoordinatorDashboard />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/find-work" element={<FindWork />} />
           <Route path="/hire-talent" element={<HireTalent />} />
           <Route path="/about" element={<About />} />
           <Route path="/jobs/:id/apply" element={<ApplyJob />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          
           {/* --- PROTECTED ROUTES GROUP --- */}
-          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-            <Route path="/dashboard/admin" element={<AdminDashboard />} />
-          </Route>
-
+          
           <Route element={<ProtectedRoute allowedRoles={['COORDINATOR']} />}>
             <Route path="/dashboard/coordinator" element={<CoordinatorDashboard />} />
           </Route>
@@ -61,10 +53,25 @@ const App = () => (
             <Route path="/dashboard/employer/applicants" element={<EmployerApplicants />} />
           </Route>
           
+          {/* ADMIN ROUTES: This is the ONLY Admin protected group now */}
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            <Route path="/admin" element={<AdminDashboard />} /> 
+            
+            {/* 1. Route for list view */}
+            <Route path="/admin/users" element={<AdminUserManagementPage />} />
+            
+            {/* 2. CRITICAL: Route for single user view (fixes 404 for View Profile) */}
+            <Route path="/admin/users/:userId" element={<AdminUserManagementPage />} /> 
+
+            <Route path="/admin/jobs" element={<div>Manage Job Posts Page (TBD)</div>} />
+            <Route path="/admin/skills" element={<AdminSkillManagementPage />} />
+          </Route>
+          
           <Route element={<ProtectedRoute allowedRoles={['LABORER']} />}>
             <Route path="/dashboard/laborer" element={<LaborerDashboard />} />
           </Route>
           {/* --- END PROTECTED ROUTES GROUP --- */}
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

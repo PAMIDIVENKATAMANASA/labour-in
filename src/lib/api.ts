@@ -1,4 +1,5 @@
 import { setAuthTokens, clearAuth } from "@/lib/auth"
+
 console.log("[API] api.ts loaded")
 const detectDefaultApiBase = () => {
   // If a Vite/Next dev server is serving the frontend on 8080, default to Django at 8000.
@@ -13,6 +14,28 @@ const detectDefaultApiBase = () => {
     return "/api/"
   }
 }
+
+export type UserData = {
+  id: number;
+  username: string;
+  email: string;
+  user_type: string;
+  is_active: boolean;
+  date_joined: string;
+};
+export const deleteUser = (userId: number) => {
+  return apiFetch<void>(`users/profile/${userId}/`, {
+    method: 'DELETE',
+  });
+};
+
+export const editUser = (userId: number, data: Partial<UserData>) => {
+  return apiFetch<UserData>(`users/profile/${userId}/`, {
+    method: 'PATCH', // Use PATCH for partial updates like an edit form
+    body: JSON.stringify(data),
+  });
+};
+
 
 export const API_BASE = (() => {
   const raw = (import.meta as ImportMeta)?.env?.VITE_API_BASE ?? detectDefaultApiBase()

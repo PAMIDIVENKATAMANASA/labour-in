@@ -42,6 +42,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer used by Admin to change core user fields, including user_type."""
+    class Meta:
+        model = User
+        # These are the fields the Admin is allowed to PATCH (edit)
+        fields = ['id', 'username', 'email', 'user_type']
+        read_only_fields = ['id']
+
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for user data (safe fields only)"""
@@ -56,25 +64,28 @@ class EmployerProfileSerializer(serializers.ModelSerializer):
     """Serializer for Employer profile"""
     class Meta:
         model = Employer
-        fields = ('id', 'company_name', 'business_type', 'verification_status', 
+        # FIX: Removed 'id' because the primary key is 'user' (OneToOneField with primary_key=True).
+        fields = ('company_name', 'business_type', 'verification_status', 
                  'company_size', 'established_year')
-        read_only_fields = ('id', 'verification_status')
+        read_only_fields = ('verification_status',)
 
 
 class CoordinatorProfileSerializer(serializers.ModelSerializer):
     """Serializer for Coordinator profile"""
     class Meta:
         model = Coordinator
-        fields = ('id', 'region', 'specialization')
-        read_only_fields = ('id',)
+        # FIX: Removed 'id' for the same reason.
+        fields = ('region', 'specialization')
+        read_only_fields = ()
 
 
 class AdministratorProfileSerializer(serializers.ModelSerializer):
     """Serializer for Administrator profile"""
     class Meta:
         model = Administrator
-        fields = ('id', 'department', 'clearance_level')
-        read_only_fields = ('id',)
+        # FIX: Removed 'id' for the same reason.
+        fields = ('department', 'clearance_level')
+        read_only_fields = ()
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -302,7 +313,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
                  'phone_number', 'address', 'user_type', 'date_joined',
                  'employer_profile', 'laborer_profile', 'coordinator_profile', 
                  'administrator_profile', 'is_active')
-        read_only_fields = ('id', 'date_joined', 'user_type', 'is_active')
+        # FIX: Removed 'id' from read_only_fields as well since the fix below removes it from the profiles.
+        read_only_fields = ('id', 'date_joined', 'user_type', 'is_active') 
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

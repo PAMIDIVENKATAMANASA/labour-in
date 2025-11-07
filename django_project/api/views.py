@@ -26,7 +26,8 @@ from .serializers import (
     JobPostingSerializer, JobPostingListSerializer,
     JobApplicationSerializer, JobApplicationListSerializer,
     WorkHistorySerializer, NotificationSerializer,
-    CustomTokenObtainPairSerializer
+    CustomTokenObtainPairSerializer,
+    AdminUserUpdateSerializer
 )
 from .permissions import (
     IsOwnerOrReadOnly, IsEmployerOrReadOnly, IsLaborerOrReadOnly,
@@ -57,15 +58,56 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-class UserProfileViewSet(viewsets.ReadOnlyModelViewSet):
+class UserProfileViewSet(viewsets.ModelViewSet):
     """ViewSet for user profiles (read-only)"""
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
     
+    def get_serializer_class(self):
+        """Use a special serializer for admin updates."""
+        # For updates (PUT/PATCH), use the serializer that allows 'user_type' modification
+        if self.request.user.user_type == 'ADMIN' and self.action in ['update', 'partial_update']:
+            return AdminUserUpdateSerializer
+        
+        # For all other actions (list, retrieve, non-admin updates), use the standard one
+        return UserProfileSerializer
     def get_queryset(self):
         if self.request.user.user_type == 'ADMIN':
             return User.objects.all()
         return User.objects.filter(id=self.request.user.id)
+    
+    def get_permissions(self):
+        """Allows only ADMIN to modify/delete other users."""
+        if self.action in ['update', 'partial_update', 'destroy']:
+            # For POST, PUT, PATCH, DELETE: Require IsAdminUser
+            return [IsAdminUser()] 
+        # For GET (list, retrieve): Only require IsAuthenticated
+        return [IsAuthenticated()]
+    
+    @action(detail=True, methods=['patch'])
+    def activate_deactivate(self, request, pk=None):
+        """Allows admin to toggle the is_active status of any user."""
+        user = self.get_object()
+        
+        # Expecting the new status in the request body, e.g., {"is_active": false}
+        is_active_new = request.data.get('is_active')
+        
+        if is_active_new is None or not isinstance(is_active_new, bool):
+            return Response({'error': 'The field "is_active" with a boolean value is required.'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Skip status change if the user is attempting to deactivate themselves
+        if user == request.user and not is_active_new:
+             return Response({'error': 'You cannot deactivate your own administrative account via this endpoint.'}, 
+                            status=status.HTTP_403_FORBIDDEN)
+            
+        user.is_active = is_active_new
+        user.save(update_fields=['is_active'])
+        
+        # Serialize and return the updated user data
+        serializer = self.get_serializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    # --- END OF FIX ---
 
 
 class EmployerProfileViewSet(viewsets.ModelViewSet):
