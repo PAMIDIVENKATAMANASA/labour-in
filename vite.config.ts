@@ -15,6 +15,19 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path,
       },
     },
+    watch: {
+      // Ignore Django venv and other unnecessary directories
+      ignored: [
+        "**/django_project/venv/**",
+        "**/venv/**",
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/__pycache__/**",
+        "**/*.pyc",
+        "**/db.sqlite3",
+        "**/db.sqlite3-journal",
+      ],
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

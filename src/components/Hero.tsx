@@ -26,7 +26,7 @@ const Hero = () => {
               className="w-full sm:w-auto"
               asChild
             >
-              <Link to="/dashboard/laborer" className="flex items-center gap-2">
+              <Link to="/find-work" className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
                 I'm a Laborer, Find a Job
               </Link>
@@ -38,7 +38,7 @@ const Hero = () => {
               className="w-full sm:w-auto"
               asChild
             >
-              <Link to="/dashboard/employer" className="flex items-center gap-2">
+              <Link to="/hire-talent" className="flex items-center gap-2">
                 <Briefcase className="h-5 w-5" />
                 I'm an Employer, Post a Job
               </Link>

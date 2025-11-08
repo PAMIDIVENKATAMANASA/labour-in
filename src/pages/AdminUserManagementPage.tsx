@@ -300,8 +300,22 @@ const AdminUserManagementPage = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                        {/* Status Toggle Button (Restored for single view actions) */}
-                        
+                        {/* Status Toggle Button */}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            title={user.is_active ? "Deactivate User" : "Activate User"}
+                            onClick={() => handleStatusToggle(user)}
+                            disabled={statusMutation.isPending}
+                          >
+                            {statusMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : user.is_active ? (
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-yellow-600" />
+                            )}
+                          </Button>
 
                         {/* EDIT BUTTON (Click Handler is here) */}
                           <Button 

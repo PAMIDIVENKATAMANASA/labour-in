@@ -8,10 +8,16 @@ import {
   Clock,
   AlertCircle,
   DollarSign,
+  FileText,
+  UserCircle,
+  Plus,
+  ArrowRight,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
+import { PostJobModal } from "@/components/PostJobModal";
+import { Link } from "react-router-dom";
 
 // --- 1. Type Definitions matching the enhanced Django API response ---
 type AdminDashboardStats = {
@@ -26,6 +32,24 @@ type AdminDashboardStats = {
   unread_notifications: number;
 };
 
+type JobPosting = {
+  id: number;
+  job_title: string;
+  job_status: "OPEN" | "CLOSED" | "COMPLETED" | "DRAFT";
+  applications_count: number;
+  employer_name: string;
+  location: string;
+};
+
+type JobApplication = {
+  id: number;
+  job_title: string;
+  laborer_name: string;
+  applied_at: string;
+  application_status: "PENDING" | "ACCEPTED" | "REJECTED";
+  proposed_rate: number;
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
@@ -37,6 +61,24 @@ const AdminDashboard = () => {
   } = useQuery<AdminDashboardStats>({
     queryKey: ["adminDashboardStats"],
     queryFn: () => apiFetch<AdminDashboardStats>("dashboard/"),
+  });
+
+  // --- Fetch Recent Jobs ---
+  const {
+    data: recentJobs,
+    isLoading: isLoadingJobs,
+  } = useQuery<{ results: JobPosting[] }>({
+    queryKey: ["adminRecentJobs"],
+    queryFn: () => apiFetch<{ results: JobPosting[] }>("jobs/?ordering=-created_at&limit=5"),
+  });
+
+  // --- Fetch Recent Applications ---
+  const {
+    data: recentApplications,
+    isLoading: isLoadingApplications,
+  } = useQuery<{ results: JobApplication[] }>({
+    queryKey: ["adminRecentApplications"],
+    queryFn: () => apiFetch<{ results: JobApplication[] }>("applications/?ordering=-applied_at&limit=5"),
   });
 
   // --- 3. Helper to render stat cards ---
@@ -74,9 +116,31 @@ const AdminDashboard = () => {
       {/* --- Navbar (Header) --- */}
       <nav className="border-b bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between relative">
-          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white">
-            System Admin Hub
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-semibold text-gray-800 dark:text-white">
+              System Admin Hub
+            </h1>
+            <div className="hidden md:flex items-center gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/admin/users">
+                  <Users className="mr-2 h-4 w-4" />
+                  Users
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/admin/skills">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Skills
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/find-work">
+                  <Briefcase className="mr-2 h-4 w-4" />
+                  Jobs
+                </Link>
+              </Button>
+            </div>
+          </div>
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             {stats && stats.unread_notifications > 0 && (
@@ -134,7 +198,79 @@ const AdminDashboard = () => {
 
         {/* --- Full Width Section for Management + Breakdown --- */}
         <div className="space-y-6">
-          {/* Other content sections can go here */}
+          {/* Recent Jobs and Applications */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Recent Jobs Card */}
+            <Card className="shadow-lg bg-white dark:bg-gray-800">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Recent Job Postings</CardTitle>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/find-work">
+                    View All <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoadingJobs ? (
+                  <div className="space-y-3">
+                    <div className="bg-muted h-4 w-full rounded animate-pulse"></div>
+                    <div className="bg-muted h-4 w-full rounded animate-pulse"></div>
+                  </div>
+                ) : recentJobs?.results && recentJobs.results.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentJobs.results.slice(0, 5).map((job) => (
+                      <div key={job.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{job.job_title}</p>
+                          <p className="text-xs text-muted-foreground">{job.employer_name} • {job.location}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">{job.applications_count} applicants</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No jobs posted yet.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent Applications Card */}
+            <Card className="shadow-lg bg-white dark:bg-gray-800">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Recent Applications</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/employer/applicants")}>
+                  View All <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoadingApplications ? (
+                  <div className="space-y-3">
+                    <div className="bg-muted h-4 w-full rounded animate-pulse"></div>
+                    <div className="bg-muted h-4 w-full rounded animate-pulse"></div>
+                  </div>
+                ) : recentApplications?.results && recentApplications.results.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentApplications.results.slice(0, 5).map((app) => (
+                      <div key={app.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{app.laborer_name}</p>
+                          <p className="text-xs text-muted-foreground">{app.job_title}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-medium">${app.proposed_rate}/hr</p>
+                          <p className="text-xs text-muted-foreground">{app.application_status}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No applications yet.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* 2-Column layout for System Management & User Breakdown */}
           <div className="grid md:grid-cols-2 gap-6">
@@ -152,10 +288,25 @@ const AdminDashboard = () => {
                   <Users className="mr-3 h-5 w-5 text-blue-500" />
                   Manage All Users
                 </Button>
-
-                
-
-                
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-base py-3"
+                  onClick={() => navigate("/admin/skills")}
+                >
+                  <Settings className="mr-3 h-5 w-5 text-purple-500" />
+                  Manage Skills
+                </Button>
+                <PostJobModal
+                  trigger={
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-base py-3"
+                    >
+                      <Plus className="mr-3 h-5 w-5 text-green-500" />
+                      Post a Job
+                    </Button>
+                  }
+                />
               </CardContent>
             </Card>
 

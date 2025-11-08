@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Bell, User, Wrench, FileText, Briefcase, History } from "lucide-react"
+import { Bell, User, Wrench, FileText, Briefcase, History, MessageSquare, Home, Settings } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -98,6 +98,7 @@ type WorkHistoryItem = {
 }
 
 const LaborerDashboard = () => {
+  const navigate = useNavigate()
   // --- State ---
   const [user, setUser] = useState<AuthUser | null>(getCurrentUser() as AuthUser | null)
   const [profile, setProfile] = useState<LaborerProfile | null>(null)
@@ -115,6 +116,8 @@ const LaborerDashboard = () => {
   const [notifOpen, setNotifOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [skillsOpen, setSkillsOpen] = useState(false)
+  const [coordinatorContactOpen, setCoordinatorContactOpen] = useState(false)
+  const [contactMessage, setContactMessage] = useState("")
 
   // Loading/Saving states
   const [loading, setLoading] = useState({ page: true, profile: false, jobs: false })
@@ -404,6 +407,69 @@ const LaborerDashboard = () => {
     }
   }
 
+  const handleContactCoordinator = async () => {
+    if (!contactMessage.trim()) {
+      toast.error("Please enter a message.")
+      return
+    }
+
+    setSaving(true)
+    try {
+      // Create a notification or message to coordinator
+      const response = await apiFetch<{ message: string; notifications_created?: number }>("notifications/", {
+        method: "POST",
+        body: JSON.stringify({
+          notification_type: "LABORER_COORDINATOR_MESSAGE",
+          message: `Laborer ${user?.username || 'Unknown'} contacted coordinator: ${contactMessage}`,
+        }),
+      })
+      
+      // Show success message with details if available
+      const successMsg = response.message || "Message sent to coordinator. You will be notified when they respond."
+      toast.success(successMsg)
+      setContactMessage("")
+      setCoordinatorContactOpen(false)
+      
+      // Refresh notifications to show the sent message
+      await loadNotifications()
+      
+      // Refresh unread count
+      try {
+        const dashboardData = await apiFetch<{ unread_notifications: number }>("dashboard/")
+        setUnreadCount(dashboardData?.unread_notifications || 0)
+      } catch (e) {
+        console.error("Could not refresh notification count", e)
+      }
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "Failed to send message. Please try again."
+      console.error("Contact coordinator error:", e)
+      
+      // Try to parse error message from API response
+      let userFriendlyError = "Failed to send message. Please try again."
+      if (e instanceof Error) {
+        try {
+          const errorData = JSON.parse(e.message)
+          if (errorData.error) {
+            userFriendlyError = errorData.error
+          } else if (errorData.detail) {
+            userFriendlyError = errorData.detail
+          }
+        } catch {
+          // If parsing fails, use the error message as is
+          if (errorMessage.includes("No active coordinators")) {
+            userFriendlyError = "No coordinators are currently available. Please try again later or contact support."
+          } else {
+            userFriendlyError = errorMessage
+          }
+        }
+      }
+      
+      toast.error(userFriendlyError)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const initials = (user?.username || "U").slice(0, 2).toUpperCase()
 
   // --- ADDED THIS HELPER FUNCTION ---
@@ -433,18 +499,40 @@ const LaborerDashboard = () => {
     <div className="min-h-screen bg-background">
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">Laborer Dashboard</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold text-foreground">Laborer Dashboard</h1>
+            <div className="hidden md:flex items-center gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/">
+                  <Home className="mr-2 h-4 w-4" />
+                  Home
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/find-work">
+                  <Briefcase className="mr-2 h-4 w-4" />
+                  Find Work
+                </Link>
+              </Button>
+            </div>
+          </div>
           
-          <Button variant="ghost" size="icon" onClick={() => handleOpenNotifications(true)} className="relative">
-            <Bell className="h-5 w-5" />
-            {unreadCount > 0 && (
-              <span
-                aria-label={`${unreadCount} unread notifications`}
-                className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary"
-              >
-              </span>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setCoordinatorContactOpen(true)}>
+              <MessageSquare className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Contact Coordinator</span>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => handleOpenNotifications(true)} className="relative">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span
+                  aria-label={`${unreadCount} unread notifications`}
+                  className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary"
+                >
+                </span>
+              )}
+            </Button>
+          </div>
           
         </div>
       </nav>
@@ -638,6 +726,15 @@ const LaborerDashboard = () => {
                 >
                   <FileText className="mr-2 h-4 w-4" />
                   View Notifications
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start bg-transparent"
+                  size="lg"
+                  onClick={() => setCoordinatorContactOpen(true)}
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  Contact Coordinator
                 </Button>
               </CardContent>
             </Card>
@@ -842,6 +939,35 @@ const LaborerDashboard = () => {
                 ))
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contact Coordinator Dialog */}
+      <Dialog open={coordinatorContactOpen} onOpenChange={setCoordinatorContactOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Contact Coordinator</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="coordinator-message">Message</Label>
+              <Textarea
+                id="coordinator-message"
+                placeholder="Describe your issue or question. The coordinator will respond and you'll be notified."
+                value={contactMessage}
+                onChange={(e) => setContactMessage(e.target.value)}
+                className="min-h-[120px]"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCoordinatorContactOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleContactCoordinator} disabled={saving || !contactMessage.trim()}>
+                {saving ? "Sending..." : "Send Message"}
+              </Button>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>

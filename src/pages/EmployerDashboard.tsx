@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Plus, Users, DollarSign, AlertCircle, Loader2 } from "lucide-react"
+import { Bell, Plus, Users, DollarSign, AlertCircle, Loader2, Home, Briefcase } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { useQuery } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { PostJobModal } from "@/components/PostJobModal"
 
 // --- Type definition for dashboard overview data ---
@@ -198,8 +198,28 @@ const EmployerDashboard = () => {
       {/* Navbar */}
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between relative">
-          <h1 className="text-xl font-bold text-foreground">Employer Dashboard</h1>
-          <Button variant="ghost" size="icon">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold text-foreground">Employer Dashboard</h1>
+            <div className="hidden md:flex items-center gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/">
+                  <Home className="mr-2 h-4 w-4" />
+                  Home
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/find-work">
+                  <Briefcase className="mr-2 h-4 w-4" />
+                  Browse Jobs
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/employer/applicants")}>
+                <Users className="mr-2 h-4 w-4" />
+                Applicants
+              </Button>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
             {stats && stats.unread_notifications > 0 && (
               <span className="absolute top-2 right-2 flex h-3 w-3">

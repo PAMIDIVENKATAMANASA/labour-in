@@ -14,6 +14,8 @@ import Signup from "./pages/Signup"
 import FindWork from "./pages/FindWork"
 import HireTalent from "./pages/HireTalent"
 import About from "./pages/About"
+import Contact from "./pages/Contact"
+import Terms from "./pages/Terms"
 import AdminSkillManagementPage from "./pages/AdminSkillManagementPage"
 import AdminUserManagementPage from "./pages/AdminUserManagementPage"
 import ApplyJob from "./pages/ApplyJob"
@@ -39,37 +41,45 @@ const App = () => (
           <Route path="/find-work" element={<FindWork />} />
           <Route path="/hire-talent" element={<HireTalent />} />
           <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/terms" element={<Terms />} />
           <Route path="/jobs/:id/apply" element={<ApplyJob />} />
           
+
           {/* --- PROTECTED ROUTES GROUP --- */}
           
+          {/* COORDINATOR ROUTES */}
           <Route element={<ProtectedRoute allowedRoles={['COORDINATOR']} />}>
             <Route path="/dashboard/coordinator" element={<CoordinatorDashboard />} />
+            {/* You would add other coordinator pages here: */}
+            {/* <Route path="/coordinator/disputes" element={...} /> */}
           </Route>
 
+          {/* EMPLOYER ROUTES */}
           <Route element={<ProtectedRoute allowedRoles={['EMPLOYER']} />}>
             <Route path="/dashboard/employer" element={<EmployerDashboard />} />
             <Route path="/dashboard/employer/jobs/:id" element={<EmployerJobDetails />} />
             <Route path="/dashboard/employer/applicants" element={<EmployerApplicants />} />
           </Route>
           
-          {/* ADMIN ROUTES: This is the ONLY Admin protected group now */}
+          {/* ADMIN ROUTES (Cleaned up and separated) */}
           <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            {/* Main Admin Dashboard */}
             <Route path="/admin" element={<AdminDashboard />} /> 
             
-            {/* 1. Route for list view */}
+            {/* User Management List and Detail View (FIXED DYNAMIC ROUTE) */}
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
-            
-            {/* 2. CRITICAL: Route for single user view (fixes 404 for View Profile) */}
             <Route path="/admin/users/:userId" element={<AdminUserManagementPage />} /> 
 
             <Route path="/admin/jobs" element={<div>Manage Job Posts Page (TBD)</div>} />
             <Route path="/admin/skills" element={<AdminSkillManagementPage />} />
           </Route>
           
+          {/* LABORER ROUTES */}
           <Route element={<ProtectedRoute allowedRoles={['LABORER']} />}>
             <Route path="/dashboard/laborer" element={<LaborerDashboard />} />
           </Route>
+          
           {/* --- END PROTECTED ROUTES GROUP --- */}
           
           <Route path="*" element={<NotFound />} />
