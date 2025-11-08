@@ -6,7 +6,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import (
     Administrator, Coordinator, Employer, SkilledLaborer,
     Skill, LaborerSkills, JobPosting, JobApplication, 
-    WorkHistory, Notification
+    WorkHistory, Notification, ContactSubmission
 )
 
 User = get_user_model()
@@ -62,12 +62,28 @@ class UserSerializer(serializers.ModelSerializer):
 
 class EmployerProfileSerializer(serializers.ModelSerializer):
     """Serializer for Employer profile"""
+    user = UserSerializer(read_only=True)
+    
     class Meta:
         model = Employer
         # FIX: Removed 'id' because the primary key is 'user' (OneToOneField with primary_key=True).
-        fields = ('company_name', 'business_type', 'verification_status', 
+        fields = ('user', 'company_name', 'business_type', 'verification_status', 
                  'company_size', 'established_year')
-        read_only_fields = ('verification_status',)
+        read_only_fields = ()
+    
+    def get_fields(self):
+        """Make verification_status writable for coordinators/admins"""
+        fields = super().get_fields()
+        # Check if user is coordinator or admin (from context)
+        request = self.context.get('request')
+        if request and request.user.user_type in ['ADMIN', 'COORDINATOR']:
+            # Remove verification_status from read_only for coordinators/admins
+            if 'verification_status' in fields:
+                fields['verification_status'].read_only = False
+        else:
+            # Keep it read-only for others
+            fields['verification_status'].read_only = True
+        return fields
 
 
 class CoordinatorProfileSerializer(serializers.ModelSerializer):
@@ -216,15 +232,48 @@ class JobPostingSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         user = self.context['request'].user
-        try:
-            employer = user.employer
-        except AttributeError:
-            # This logic is good, but we should also auto-create one
-            # if the user is an EMPLOYER but has no profile yet.
-            if getattr(user, "user_type", None) == "EMPLOYER":
+        user_type = getattr(user, "user_type", None)
+        
+        # Allow both employers and admins to create job postings
+        if user_type not in ['EMPLOYER', 'ADMIN']:
+            raise serializers.ValidationError("Only employers and admins can create job postings")
+        
+        # For admins, we need to handle employer assignment
+        if user_type == 'ADMIN':
+            # Use the first available employer or create a default one
+            employer = Employer.objects.first()
+            if not employer:
+                # Create a default admin employer if none exists
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                admin_user = User.objects.filter(user_type='EMPLOYER').first()
+                if admin_user and hasattr(admin_user, 'employer'):
+                    employer = admin_user.employer
+                else:
+                    # Create a system employer for admin posts
+                    system_user = User.objects.filter(username='system').first()
+                    if not system_user:
+                        system_user = User.objects.create_user(
+                            username='system',
+                            email='system@skilledlabor.com',
+                            user_type='EMPLOYER'
+                        )
+                    if not hasattr(system_user, 'employer'):
+                        employer = Employer.objects.create(
+                            user=system_user,
+                            company_name='System Admin',
+                            business_type='ADMIN',
+                            verification_status='VERIFIED'
+                        )
+                    else:
+                        employer = system_user.employer
+        else:
+            # For regular employers
+            try:
+                employer = user.employer
+            except AttributeError:
+                # Auto-create employer profile if it doesn't exist
                 employer = Employer.objects.create(user=user, company_name=f"{user.username}'s Company")
-            else:
-                raise serializers.ValidationError("Only employers can create job postings")
         
         validated_data['employer'] = employer
         return super().create(validated_data)
@@ -289,6 +338,11 @@ class WorkHistorySerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for Notification"""
     recipient_name = serializers.SerializerMethodField(read_only=True)
+    recipient = serializers.PrimaryKeyRelatedField(
+        queryset=get_user_model().objects.all(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = Notification
@@ -298,6 +352,31 @@ class NotificationSerializer(serializers.ModelSerializer):
     
     def get_recipient_name(self, obj):
         return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip() or obj.recipient.username
+    
+    def validate(self, data):
+        """Custom validation - recipient not required for LABORER_COORDINATOR_MESSAGE"""
+        notification_type = data.get('notification_type', '')
+        recipient = data.get('recipient')
+        
+        # For LABORER_COORDINATOR_MESSAGE, recipient is not required (will be set in view)
+        if notification_type == 'LABORER_COORDINATOR_MESSAGE':
+            return data
+        
+        # For other notification types, recipient is required
+        if not recipient:
+            raise serializers.ValidationError({'recipient': 'This field is required.'})
+        
+        return data
+
+
+class ContactSubmissionSerializer(serializers.ModelSerializer):
+    """Serializer for Contact Form Submissions"""
+    
+    class Meta:
+        model = ContactSubmission
+        fields = ('id', 'name', 'email', 'subject', 'message', 
+                 'submitted_at', 'is_read', 'read_at')
+        read_only_fields = ('id', 'submitted_at', 'is_read', 'read_at')
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

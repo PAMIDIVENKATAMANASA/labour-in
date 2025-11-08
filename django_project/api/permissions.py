@@ -25,21 +25,24 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 
 class IsEmployerOrReadOnly(permissions.BasePermission):
     """
-    Custom permission to only allow employers to create/edit job postings.
+    Custom permission to only allow employers and admins to create/edit job postings.
     """
     def has_permission(self, request, view):
         # Read permissions for any authenticated request
         if request.method in permissions.SAFE_METHODS:
             return request.user.is_authenticated
         
-        # Write permissions are only allowed for employers
-        return request.user.is_authenticated and request.user.user_type == 'EMPLOYER'
+        # Write permissions are allowed for employers and admins
+        return request.user.is_authenticated and request.user.user_type in ['EMPLOYER', 'ADMIN']
     
     def has_object_permission(self, request, view, obj):
         # Read permissions for any authenticated request
         if request.method in permissions.SAFE_METHODS:
             return request.user.is_authenticated
 
+        # Admins can edit any job, employers can only edit their own
+        if request.user.user_type == 'ADMIN':
+            return True
         # Write permissions only for the owner employer
         return obj.employer.user == request.user
 
@@ -89,11 +92,11 @@ class IsEmployerApplicantOwner(permissions.BasePermission):
 
 class IsAdminOrOwner(permissions.BasePermission):
     """
-    Custom permission to allow admins or owners to access objects.
+    Custom permission to allow admins, coordinators, or owners to access objects.
     """
     def has_object_permission(self, request, view, obj):
-        # Admin users have full access
-        if request.user.user_type == 'ADMIN':
+        # Admin and Coordinator users have full access
+        if request.user.user_type in ['ADMIN', 'COORDINATOR']:
             return True
         
         # Object owners have access
@@ -140,6 +143,27 @@ def IsCoordinator():
 def IsAdmin():
     """Factory function for admin-only permission"""
     return IsEmployeeType('ADMIN')
+
+
+class IsCoordinatorOrOwnerOrReadOnly(permissions.BasePermission):
+    """
+    Custom permission to allow coordinators/admins to edit any employer,
+    owners to edit their own, and read for all authenticated users.
+    """
+    def has_object_permission(self, request, view, obj):
+        # Read permissions for any authenticated request
+        if request.method in permissions.SAFE_METHODS:
+            return request.user.is_authenticated
+        
+        # Coordinators and Admins can update any employer
+        if request.user.user_type in ['ADMIN', 'COORDINATOR']:
+            return True
+        
+        # Employers can only update their own profile
+        if hasattr(obj, 'user'):
+            return obj.user == request.user
+        
+        return False
 
 
 

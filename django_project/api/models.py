@@ -276,6 +276,9 @@ class Notification(models.Model):
         ('WORK_REMINDER', 'Work Reminder'),
         ('RATING_REMINDER', 'Rating Reminder'),
         ('ACCOUNT_UPDATE', 'Account Update'),
+        ('LABORER_COORDINATOR_MESSAGE', 'Laborer Coordinator Message'),
+        ('MESSAGE_SENT', 'Message Sent'),
+        ('COORDINATOR_RESPONSE', 'Coordinator Response'),
     ]
     
     STATUS_CHOICES = [
@@ -285,7 +288,7 @@ class Notification(models.Model):
     ]
     
     recipient = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPE_CHOICES)
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPE_CHOICES)
     message = models.TextField()
     is_read = models.BooleanField(default=False)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='SENT')
@@ -294,3 +297,20 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"{self.notification_type} - {self.recipient.username}"
+
+
+class ContactSubmission(models.Model):
+    """Contact form submission model"""
+    name = models.CharField(max_length=200)
+    email = models.EmailField()
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-submitted_at']
+    
+    def __str__(self):
+        return f"Contact from {self.name} - {self.subject}"

@@ -17,6 +17,7 @@ router.register(r'jobs', views.JobPostingViewSet, basename='job-posting')
 router.register(r'applications', views.JobApplicationViewSet, basename='job-application')
 router.register(r'work-history', views.WorkHistoryViewSet, basename='work-history')
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
+router.register(r'contact-submissions', views.ContactSubmissionViewSet, basename='contact-submission')
 
 urlpatterns = [
     # Authentication endpoints
