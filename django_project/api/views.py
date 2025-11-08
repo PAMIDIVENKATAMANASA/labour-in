@@ -214,15 +214,30 @@ class SkilledLaborerProfileViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     def partial_update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        
-        updated_instance = serializer.save() 
-        
-        fresh_serializer = self.get_serializer(updated_instance)
+        try:
+            instance = self.get_object()
+            if not instance:
+                return Response(
+                    {'error': 'Laborer profile not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            
+            updated_instance = serializer.save() 
+            
+            fresh_serializer = self.get_serializer(updated_instance)
 
-        return Response(fresh_serializer.data, status=status.HTTP_200_OK)
+            return Response(fresh_serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            import traceback
+            print(f"Error updating laborer profile: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {'error': f'Failed to update profile: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     @action(detail=True, methods=['get'])
     def progress(self, request, pk=None):
@@ -295,7 +310,6 @@ class LaborerSkillsViewSet(viewsets.ModelViewSet):
 
 class JobPostingViewSet(viewsets.ModelViewSet):
     """ViewSet for Job Postings with employer restrictions"""
-    permission_classes = [IsEmployerOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['work_type', 'job_status', 'employer__business_type']
     search_fields = ['job_title', 'job_description', 'location']
@@ -308,9 +322,12 @@ class JobPostingViewSet(viewsets.ModelViewSet):
         return JobPostingSerializer
     
     def get_permissions(self):
+        """Allow anyone to read, but require authentication for write operations"""
         if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
             return [AllowAny()]
-        return super().get_permissions()
+        # For POST, PUT, PATCH, DELETE - use IsEmployerOrReadOnly which allows employers and admins
+        # IsEmployerOrReadOnly already checks authentication internally
+        return [IsEmployerOrReadOnly()]
 
     def get_queryset(self):
         queryset = JobPosting.objects.select_related('employer', 'employer__user').all()
@@ -339,12 +356,22 @@ class JobPostingViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
+        # Ensure user is authenticated
+        if not self.request.user.is_authenticated:
+            raise PermissionError("Authentication required to create job postings")
+        
         # Allow both employers and admins to create job postings
-        if self.request.user.user_type not in ['EMPLOYER', 'ADMIN']:
-            raise PermissionError("Only employers and admins can create job postings")
+        user_type = getattr(self.request.user, 'user_type', None)
+        if user_type not in ['EMPLOYER', 'ADMIN']:
+            # Provide a more helpful error message
+            raise PermissionError(
+                f"Only employers and admins can create job postings. "
+                f"Your user type is: {user_type or 'not set'}. "
+                f"Please contact support if you believe this is an error."
+            )
         
         # For admins, we need to handle employer assignment differently
-        if self.request.user.user_type == 'ADMIN':
+        if user_type == 'ADMIN':
             # Admins can post jobs, but we need an employer
             # Use the first available employer or create a default one
             employer = Employer.objects.first()
@@ -597,6 +624,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 for coordinator in coordinators:
                     notif = Notification.objects.create(
                         recipient=coordinator,
+                        sender=request.user,  # Store the laborer who sent the message
                         notification_type='LABORER_COORDINATOR_MESSAGE',
                         message=message
                     )
@@ -690,6 +718,75 @@ class NotificationViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(
                 {'error': f'Failed to send reminder: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def reply(self, request, pk=None):
+        """Coordinator reply to a laborer message"""
+        if request.user.user_type not in ['ADMIN', 'COORDINATOR']:
+            return Response(
+                {'error': 'Only coordinators and admins can reply to messages'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            original_notification = self.get_object()
+            
+            # Check if this is a LABORER_COORDINATOR_MESSAGE
+            if original_notification.notification_type != 'LABORER_COORDINATOR_MESSAGE':
+                return Response(
+                    {'error': 'This notification is not a message from a laborer'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get the reply message from request
+            reply_message = request.data.get('reply_message', '').strip()
+            if not reply_message:
+                return Response(
+                    {'error': 'Reply message is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get the original sender (laborer)
+            if not original_notification.sender:
+                return Response(
+                    {'error': 'Original sender not found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            laborer = original_notification.sender
+            
+            # Create reply notification for the laborer
+            reply_notification = Notification.objects.create(
+                recipient=laborer,
+                sender=request.user,
+                notification_type='COORDINATOR_RESPONSE',
+                message=f"Coordinator Response: {reply_message}"
+            )
+            
+            # Mark original notification as read
+            original_notification.is_read = True
+            original_notification.read_at = timezone.now()
+            original_notification.save()
+            
+            serializer = self.get_serializer(reply_notification)
+            return Response({
+                'message': 'Reply sent successfully',
+                'notification': serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Notification.DoesNotExist:
+            return Response(
+                {'error': 'Notification not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            import traceback
+            print(f"Error replying to notification: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {'error': f'Failed to send reply: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     

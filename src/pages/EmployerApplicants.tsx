@@ -46,10 +46,19 @@ export default function EmployerApplicants() {
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [jobFilter, setJobFilter] = useState("")
 
-  const { data: applications, isLoading, error } = useQuery<JobApplication[]>({
+  const { data: applicationsData, isLoading, error } = useQuery<JobApplication[] | { results: JobApplication[] }>({
     queryKey: ["employerApplications"],
-    queryFn: () => apiFetch<JobApplication[]>("applications/"), // Backend already filters this
+    queryFn: async () => {
+      const response = await apiFetch<JobApplication[] | { results: JobApplication[] }>("applications/");
+      // Handle both array and paginated response
+      return Array.isArray(response) ? response : response.results || [];
+    },
   })
+  
+  // Extract applications from response (handle both array and paginated)
+  const applications = Array.isArray(applicationsData) 
+    ? applicationsData 
+    : applicationsData?.results || []
 
   const mutation = useMutation<JobApplication, Error, UpdateApplicationPayload>({
     mutationFn: ({ id, ...payload }) => {
@@ -130,6 +139,7 @@ export default function EmployerApplicants() {
           <TableRow>
             <TableHead>Applicant</TableHead>
             <TableHead>Job Title</TableHead>
+            <TableHead>Proposed Rate</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Applied On</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -140,6 +150,7 @@ export default function EmployerApplicants() {
             <TableRow key={app.id}>
               <TableCell className="font-medium">{app.laborer_name}</TableCell>
               <TableCell>{app.job_title}</TableCell>
+              <TableCell className="font-semibold text-primary">${app.proposed_rate}/hr</TableCell>
               <TableCell>
                 <Badge
                   variant={
@@ -155,36 +166,38 @@ export default function EmployerApplicants() {
                 </Badge>
               </TableCell>
               <TableCell>{new Date(app.applied_at).toLocaleDateString()}</TableCell>
-              <TableCell className="text-right space-x-2">
-                {app.application_status === "PENDING" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-                      onClick={() => handleUpdateStatus(app.id, "ACCEPTED")}
-                      disabled={mutation.isPending}
-                    >
-                      <UserCheck className="h-4 w-4 mr-1" />
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={() => handleUpdateStatus(app.id, "REJECTED")}
-                      disabled={mutation.isPending}
-                    >
-                      <UserX className="h-4 w-4 mr-1" />
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {app.application_status !== "PENDING" && (
-                  <span className="text-sm text-muted-foreground italic">
-                    Action taken
-                  </span>
-                )}
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-2">
+                  {app.application_status === "PENDING" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                        onClick={() => handleUpdateStatus(app.id, "ACCEPTED")}
+                        disabled={mutation.isPending}
+                      >
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => handleUpdateStatus(app.id, "REJECTED")}
+                        disabled={mutation.isPending}
+                      >
+                        <UserX className="h-4 w-4 mr-1" />
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  {app.application_status !== "PENDING" && (
+                    <span className="text-sm text-muted-foreground italic">
+                      {app.application_status === "ACCEPTED" ? "Approved" : "Rejected"}
+                    </span>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

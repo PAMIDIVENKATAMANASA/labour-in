@@ -33,7 +33,23 @@ class IsEmployerOrReadOnly(permissions.BasePermission):
             return request.user.is_authenticated
         
         # Write permissions are allowed for employers and admins
-        return request.user.is_authenticated and request.user.user_type in ['EMPLOYER', 'ADMIN']
+        if not request.user.is_authenticated:
+            return False
+        
+        # Check user_type safely - allow EMPLOYER and ADMIN
+        user_type = getattr(request.user, 'user_type', None)
+        is_allowed = user_type in ['EMPLOYER', 'ADMIN']
+        
+        # Debug logging (can be removed in production)
+        if not is_allowed:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Permission denied for user {request.user.username} "
+                f"(user_type: {user_type}) attempting {request.method} on {view.__class__.__name__}"
+            )
+        
+        return is_allowed
     
     def has_object_permission(self, request, view, obj):
         # Read permissions for any authenticated request

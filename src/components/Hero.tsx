@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Users, Briefcase } from "lucide-react";
+import { Users, Briefcase, Shield, UserCog } from "lucide-react";
 
 const Hero = () => {
   return (
@@ -41,6 +41,32 @@ const Hero = () => {
               <Link to="/hire-talent" className="flex items-center gap-2">
                 <Briefcase className="h-5 w-5" />
                 I'm an Employer, Post a Job
+              </Link>
+            </Button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-4">
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="w-full sm:w-auto"
+              asChild
+            >
+              <Link to="/admin" className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Admin Dashboard
+              </Link>
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="w-full sm:w-auto"
+              asChild
+            >
+              <Link to="/coordinator" className="flex items-center gap-2">
+                <UserCog className="h-5 w-5" />
+                Coordinator Dashboard
               </Link>
             </Button>
           </div>

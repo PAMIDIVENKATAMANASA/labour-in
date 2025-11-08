@@ -287,7 +287,8 @@ class Notification(models.Model):
         ('FAILED', 'Failed'),
     ]
     
-    recipient = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    recipient = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='received_notifications')
+    sender = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')
     notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPE_CHOICES)
     message = models.TextField()
     is_read = models.BooleanField(default=False)

@@ -30,7 +30,9 @@ This document summarizes all the fixes applied to resolve the reported issues.
 5. Should see success toast: "Message sent to coordinator. You will be notified when they respond."
 6. Coordinator should receive notification
 
+
 ---
+
 
 ### 2. ✅ Admin Dashboard - Job Posting Permission Fixed
 

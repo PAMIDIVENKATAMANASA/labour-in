@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Bell, Users, Briefcase, Settings, Clock, AlertCircle, Loader2, Zap, ShieldCheck, ClipboardList, TrendingUp, X, CheckCircle, XCircle, Search, FileText, MapPin, Calendar, DollarSign, Home } from "lucide-react";
+import { Bell, Users, Briefcase, Settings, Clock, AlertCircle, Loader2, Zap, ShieldCheck, ClipboardList, TrendingUp, X, CheckCircle, XCircle, FileText, MapPin, Calendar, DollarSign, Home, Search } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api"; 
 import { useNavigate, Link } from "react-router-dom";
@@ -131,6 +131,10 @@ type NotificationItem = {
   created_at: string;
   read_at?: string | null;
   status?: string;
+  sender?: number | null;
+  sender_id?: number | null;
+  sender_name?: string | null;
+  recipient_name?: string;
 }
 
 // --- Component for Pending Employer Verification List ---
@@ -678,72 +682,14 @@ const LongPendingApplicationsList = () => {
     );
 };
 
-// --- User Search Component ---
-type SearchUser = {
-    id: number;
-    username: string;
-    email: string;
-    user_type: string;
-    first_name?: string;
-    last_name?: string;
-}
-
-const UserSearchComponent = () => {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
-
-    const handleSearch = async () => {
-        if (!searchQuery.trim()) return;
-        setIsSearching(true);
-        try {
-            const results = await apiFetch<{ users?: SearchUser[] }>(`search/?q=${encodeURIComponent(searchQuery)}&type=all`);
-            setSearchResults(results.users || []);
-        } catch (error) {
-            toast.error("Failed to search users");
-        } finally {
-            setIsSearching(false);
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Search className="h-5 w-5" /> User Search
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                    <Input
-                        placeholder="Search by username, email, name..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    />
-                    <Button onClick={handleSearch} disabled={isSearching}>
-                        {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-                    </Button>
-                </div>
-                {searchResults.length > 0 && (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {searchResults.map((user) => (
-                            <div key={user.id} className="border rounded p-2">
-                                <p className="font-medium">{user.username}</p>
-                                <p className="text-xs text-muted-foreground">{user.email}</p>
-                                <Badge variant="outline" className="mt-1">{user.user_type}</Badge>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-};
-
 // --- Notifications Component ---
 const NotificationsComponent = () => {
+    const queryClient = useQueryClient();
     const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
+    const [replyDialogOpen, setReplyDialogOpen] = useState(false);
+    const [replyMessage, setReplyMessage] = useState("");
+    
     const { data: notifications, isLoading } = useQuery<{ results: NotificationItem[] }>({
         queryKey: ["coordinatorNotifications"],
         queryFn: () => apiFetch<{ results: NotificationItem[] }>("notifications/"),
@@ -756,8 +702,46 @@ const NotificationsComponent = () => {
         mutationFn: () => apiFetch("notifications/mark_all_read/", { method: "POST" }),
         onSuccess: () => {
             toast.success("All notifications marked as read");
+            queryClient.invalidateQueries({ queryKey: ["coordinatorNotifications"] });
         },
     });
+
+    const replyMutation = useMutation({
+        mutationFn: async ({ notificationId, replyMessage }: { notificationId: number; replyMessage: string }) => {
+            return apiFetch<{ message: string; notification: NotificationItem }>(`notifications/${notificationId}/reply/`, {
+                method: "POST",
+                body: JSON.stringify({ reply_message: replyMessage }),
+            });
+        },
+        onSuccess: (data) => {
+            toast.success(data.message || "Reply sent successfully");
+            queryClient.invalidateQueries({ queryKey: ["coordinatorNotifications"] });
+            setReplyDialogOpen(false);
+            setSelectedNotification(null);
+            setReplyMessage("");
+        },
+        onError: (error: Error) => {
+            toast.error(`Failed to send reply: ${error.message}`);
+        },
+    });
+
+    const handleNotificationClick = (notif: NotificationItem) => {
+        if (notif.notification_type === 'LABORER_COORDINATOR_MESSAGE') {
+            setSelectedNotification(notif);
+            setReplyDialogOpen(true);
+        }
+    };
+
+    const handleReply = () => {
+        if (selectedNotification && replyMessage.trim()) {
+            replyMutation.mutate({ 
+                notificationId: selectedNotification.id, 
+                replyMessage: replyMessage.trim() 
+            });
+        } else {
+            toast.error("Please enter a reply message");
+        }
+    };
 
     return (
         <>
@@ -775,8 +759,9 @@ const NotificationsComponent = () => {
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => markAllReadMutation.mutate()}
+                                disabled={markAllReadMutation.isPending}
                             >
-                                Mark All Read
+                                {markAllReadMutation.isPending ? "Marking..." : "Mark All Read"}
                             </Button>
                         </div>
                         <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -786,16 +771,89 @@ const NotificationsComponent = () => {
                                 <p className="text-center text-muted-foreground">No notifications</p>
                             ) : (
                                 notifications?.results?.map((notif: NotificationItem) => (
-                                    <div key={notif.id} className="border rounded p-3">
-                                        <p className="text-sm font-medium">{notif.message}</p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            {new Date(notif.created_at).toLocaleString()}
-                                        </p>
+                                    <div 
+                                        key={notif.id} 
+                                        className={`border rounded p-3 cursor-pointer hover:bg-muted/50 transition-colors ${
+                                            notif.notification_type === 'LABORER_COORDINATOR_MESSAGE' ? 'border-primary' : ''
+                                        } ${!notif.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                                        onClick={() => handleNotificationClick(notif)}
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                {notif.notification_type === 'LABORER_COORDINATOR_MESSAGE' && notif.sender_name && (
+                                                    <p className="text-xs font-semibold text-primary mb-1">
+                                                        From: {notif.sender_name}
+                                                    </p>
+                                                )}
+                                                <p className="text-sm font-medium">{notif.message}</p>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {new Date(notif.created_at).toLocaleString()}
+                                                </p>
+                                            </div>
+                                            {!notif.is_read && (
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1"></div>
+                                            )}
+                                        </div>
+                                        {notif.notification_type === 'LABORER_COORDINATOR_MESSAGE' && (
+                                            <p className="text-xs text-primary mt-2 italic">Click to view and reply</p>
+                                        )}
                                     </div>
                                 ))
                             )}
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Reply Dialog */}
+            <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Reply to Laborer Message</DialogTitle>
+                        <DialogDescription>
+                            View the original message and send your reply
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedNotification && (
+                        <div className="space-y-4">
+                            <div className="border rounded p-4 bg-muted/50">
+                                <p className="text-sm font-semibold mb-2">
+                                    Original Message from {selectedNotification.sender_name || 'Laborer'}:
+                                </p>
+                                <p className="text-sm">{selectedNotification.message}</p>
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    {new Date(selectedNotification.created_at).toLocaleString()}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">Your Reply</label>
+                                <Textarea
+                                    value={replyMessage}
+                                    onChange={(e) => setReplyMessage(e.target.value)}
+                                    placeholder="Enter your reply message..."
+                                    className="mt-1 min-h-[100px]"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setReplyDialogOpen(false);
+                                setSelectedNotification(null);
+                                setReplyMessage("");
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleReply}
+                            disabled={replyMutation.isPending || !replyMessage.trim()}
+                        >
+                            {replyMutation.isPending ? "Sending..." : "Send Reply"}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </>
@@ -1083,9 +1141,6 @@ const CoordinatorDashboard = () => {
           {/* Column 4: Sidebar (Management & Breakdown) */}
           <div className="lg:col-span-1 space-y-6">
             
-            {/* User Search */}
-            <UserSearchComponent />
-
             {/* Management Links (Coordinator Tools) */}
             <Card className="shadow-lg bg-white dark:bg-gray-800">
               <CardHeader>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with rounded square -->
+  <rect x="5" y="5" width="90" height="90" rx="18" fill="url(#bgGrad)"/>
+  
+  <!-- Briefcase/Toolbox representing work -->
+  <g transform="translate(50, 45)">
+    <!-- Main briefcase body -->
+    <rect x="-22" y="-5" width="44" height="30" rx="3" fill="white" opacity="0.95"/>
+    <!-- Briefcase handle -->
+    <path d="M -14 -5 Q -14 -12, -7 -12 Q 7 -12, 14 -5" 
+          stroke="white" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <!-- Lock/clasp detail -->
+    <rect x="-4" y="8" width="8" height="6" rx="1" fill="#2563eb"/>
+    <circle cx="0" cy="11" r="2" fill="white"/>
+  </g>
+  
+  <!-- Tools icon below briefcase -->
+  <g transform="translate(50, 70)">
+    <!-- Wrench/tool -->
+    <circle cx="0" cy="0" r="4" fill="white" opacity="0.9"/>
+    <line x1="-6" y1="0" x2="6" y2="0" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="-6" x2="0" y2="6" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

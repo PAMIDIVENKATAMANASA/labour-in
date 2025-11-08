@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +42,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 
 // Type for JobApplicationListSerializer
@@ -51,6 +60,8 @@ type JobApplication = {
   application_status: "PENDING" | "ACCEPTED" | "REJECTED"
   proposed_rate: number
   job_title: string
+  cover_letter?: string
+  laborer_email?: string
 }
 
 // Type for JobPostingSerializer (detailed view)
@@ -79,6 +90,8 @@ export default function EmployerJobDetails() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null)
+  const [applicationDialogOpen, setApplicationDialogOpen] = useState(false)
 
   // 1. Fetch detailed info for this specific job
   const {
@@ -256,6 +269,8 @@ export default function EmployerJobDetails() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Applicant</TableHead>
+                    <TableHead>Proposed Rate</TableHead>
+                    <TableHead>Applied Date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -263,14 +278,19 @@ export default function EmployerJobDetails() {
                 <TableBody>
                   {applications?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
                         No applicants yet.
                       </TableCell>
                     </TableRow>
                   )}
                   {applications?.map((app) => (
-                    <TableRow key={app.id}>
+                    <TableRow key={app.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                      setSelectedApplication(app)
+                      setApplicationDialogOpen(true)
+                    }}>
                       <TableCell className="font-medium">{app.laborer_name}</TableCell>
+                      <TableCell>${app.proposed_rate}/hr</TableCell>
+                      <TableCell>{new Date(app.applied_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Badge
                           variant={
@@ -285,7 +305,7 @@ export default function EmployerJobDetails() {
                           {app.application_status.toLowerCase()}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
+                      <TableCell className="text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                          {app.application_status === "PENDING" && (
                            <>
                             <Button
@@ -294,6 +314,7 @@ export default function EmployerJobDetails() {
                               className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
                               onClick={() => updateApplication.mutate({ id: app.id, application_status: "ACCEPTED" })}
                               disabled={updateApplication.isPending}
+                              title="Accept Application"
                             >
                               <UserCheck className="h-4 w-4" />
                             </Button>
@@ -303,16 +324,116 @@ export default function EmployerJobDetails() {
                               className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
                               onClick={() => updateApplication.mutate({ id: app.id, application_status: "REJECTED" })}
                               disabled={updateApplication.isPending}
+                              title="Reject Application"
                             >
                               <UserX className="h-4 w-4" />
                             </Button>
                            </>
+                         )}
+                         {app.application_status !== "PENDING" && (
+                           <Button
+                             variant="ghost"
+                             size="sm"
+                             onClick={() => {
+                               setSelectedApplication(app)
+                               setApplicationDialogOpen(true)
+                             }}
+                           >
+                             View Details
+                           </Button>
                          )}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              
+              {/* Application Details Dialog */}
+              <Dialog open={applicationDialogOpen} onOpenChange={setApplicationDialogOpen}>
+                <DialogContent className="sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Application Details</DialogTitle>
+                    <DialogDescription>
+                      View full application information
+                    </DialogDescription>
+                  </DialogHeader>
+                  {selectedApplication && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Applicant Name</label>
+                          <p className="text-base font-semibold">{selectedApplication.laborer_name}</p>
+                        </div>
+                        {selectedApplication.laborer_email && (
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Email</label>
+                            <p className="text-base">{selectedApplication.laborer_email}</p>
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Proposed Rate</label>
+                          <p className="text-base font-semibold text-primary">${selectedApplication.proposed_rate}/hr</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Applied Date</label>
+                          <p className="text-base">{new Date(selectedApplication.applied_at).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Status</label>
+                          <Badge
+                            variant={
+                              selectedApplication.application_status === "ACCEPTED"
+                                ? "default"
+                                : selectedApplication.application_status === "REJECTED"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                            className="capitalize mt-1"
+                          >
+                            {selectedApplication.application_status.toLowerCase()}
+                          </Badge>
+                        </div>
+                      </div>
+                      {selectedApplication.cover_letter && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Cover Letter</label>
+                          <p className="text-base mt-2 p-4 bg-muted rounded-md whitespace-pre-wrap">
+                            {selectedApplication.cover_letter}
+                          </p>
+                        </div>
+                      )}
+                      {selectedApplication.application_status === "PENDING" && (
+                        <div className="flex gap-2 pt-4 border-t">
+                          <Button
+                            variant="default"
+                            className="flex-1"
+                            onClick={() => {
+                              updateApplication.mutate({ id: selectedApplication.id, application_status: "ACCEPTED" })
+                              setApplicationDialogOpen(false)
+                            }}
+                            disabled={updateApplication.isPending}
+                          >
+                            <UserCheck className="mr-2 h-4 w-4" />
+                            Accept Application
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={() => {
+                              updateApplication.mutate({ id: selectedApplication.id, application_status: "REJECTED" })
+                              setApplicationDialogOpen(false)
+                            }}
+                            disabled={updateApplication.isPending}
+                          >
+                            <UserX className="mr-2 h-4 w-4" />
+                            Reject Application
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         </div>

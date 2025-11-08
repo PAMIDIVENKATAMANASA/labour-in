@@ -226,6 +226,7 @@ const LaborerDashboard = () => {
     if (!user?.id) return
     setSaving(true)
     const form = new FormData(e.currentTarget)
+    const hourlyRateValue = form.get("hourly_rate")
     const payload = {
       user: {
         first_name: String(form.get("first_name") || ""),
@@ -235,7 +236,7 @@ const LaborerDashboard = () => {
       bio: String(form.get("bio") || ""),
       experience_level: String(form.get("experience_level") || ""),
       years_experience: Number(form.get("years_experience") || 0),
-      hourly_rate: form.get("hourly_rate") ? String(form.get("hourly_rate")) : null,
+      hourly_rate: hourlyRateValue ? (typeof hourlyRateValue === 'string' ? parseFloat(hourlyRateValue) : Number(hourlyRateValue)) : null,
       max_travel_distance_km: form.get("max_travel_distance_km") ? Number(form.get("max_travel_distance_km")) : null,
     }
 
@@ -252,9 +253,37 @@ const LaborerDashboard = () => {
 
       toast.success("Profile updated successfully.")
       setEditOpen(false)
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("[v0] save profile error", e)
-      toast.error("Could not update profile. Please check the fields and try again.")
+      let errorMessage = "Could not update profile. Please check the fields and try again."
+      
+      if (e instanceof Error) {
+        try {
+          const errorData = JSON.parse(e.message)
+          if (errorData.error) {
+            errorMessage = errorData.error
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail
+          } else if (typeof errorData === 'object') {
+            // Handle field-specific errors
+            const fieldErrors = Object.entries(errorData)
+              .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+              .join('\n')
+            if (fieldErrors) {
+              errorMessage = fieldErrors
+            }
+          }
+        } catch {
+          // If parsing fails, use the original error message
+          if (e.message) {
+            errorMessage = e.message
+          }
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 10000, // Show for 10 seconds to read field errors
+      })
     } finally {
       setSaving(false)
     }

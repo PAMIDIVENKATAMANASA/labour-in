@@ -182,13 +182,28 @@ class SkilledLaborerProfileSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Handle nested user object update
         user_data = validated_data.pop('user', {})
-        user_serializer = UserUpdateSerializer(instance.user, data=user_data, partial=True)
-        if user_serializer.is_valid(raise_exception=True):
-            user_serializer.save()
+        if user_data:
+            user_serializer = UserUpdateSerializer(instance.user, data=user_data, partial=True)
+            if user_serializer.is_valid(raise_exception=True):
+                user_serializer.save()
 
         # Handle has_avatar field
         if 'has_avatar' in validated_data:
             instance.has_avatar = validated_data.pop('has_avatar')
+
+        # Handle hourly_rate - ensure it's properly converted
+        if 'hourly_rate' in validated_data:
+            hourly_rate = validated_data.pop('hourly_rate')
+            if hourly_rate is not None:
+                # Convert to Decimal if it's a string or number
+                if isinstance(hourly_rate, str):
+                    try:
+                        hourly_rate = float(hourly_rate)
+                    except (ValueError, TypeError):
+                        hourly_rate = None
+                instance.hourly_rate = hourly_rate
+            else:
+                instance.hourly_rate = None
 
         # Handle SkilledLaborer object update
         for attr, value in validated_data.items():
@@ -268,12 +283,17 @@ class JobPostingSerializer(serializers.ModelSerializer):
                     else:
                         employer = system_user.employer
         else:
-            # For regular employers
+            # For regular employers - ensure they have an employer profile
             try:
                 employer = user.employer
             except AttributeError:
                 # Auto-create employer profile if it doesn't exist
-                employer = Employer.objects.create(user=user, company_name=f"{user.username}'s Company")
+                # This ensures employers can post jobs even if profile wasn't created during registration
+                employer = Employer.objects.create(
+                    user=user, 
+                    company_name=f"{user.username}'s Company",
+                    verification_status='PENDING'
+                )
         
         validated_data['employer'] = employer
         return super().create(validated_data)
@@ -338,7 +358,14 @@ class WorkHistorySerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for Notification"""
     recipient_name = serializers.SerializerMethodField(read_only=True)
+    sender_name = serializers.SerializerMethodField(read_only=True)
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True)
     recipient = serializers.PrimaryKeyRelatedField(
+        queryset=get_user_model().objects.all(),
+        required=False,
+        allow_null=True
+    )
+    sender = serializers.PrimaryKeyRelatedField(
         queryset=get_user_model().objects.all(),
         required=False,
         allow_null=True
@@ -346,12 +373,17 @@ class NotificationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Notification
-        fields = ('id', 'recipient', 'notification_type', 'message', 
-                 'is_read', 'status', 'created_at', 'read_at', 'recipient_name')
-        read_only_fields = ('id', 'created_at', 'read_at', 'recipient_name')
+        fields = ('id', 'recipient', 'sender', 'sender_id', 'notification_type', 'message', 
+                 'is_read', 'status', 'created_at', 'read_at', 'recipient_name', 'sender_name')
+        read_only_fields = ('id', 'created_at', 'read_at', 'recipient_name', 'sender_name', 'sender_id')
     
     def get_recipient_name(self, obj):
         return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip() or obj.recipient.username
+    
+    def get_sender_name(self, obj):
+        if obj.sender:
+            return f"{obj.sender.first_name} {obj.sender.last_name}".strip() or obj.sender.username
+        return None
     
     def validate(self, data):
         """Custom validation - recipient not required for LABORER_COORDINATOR_MESSAGE"""

@@ -33,6 +33,8 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "[::1]",
+    "10.19.58.120",  # Your network IP address
+    "*",  # Allow all hosts (only for development!)
 ]
 
 
@@ -250,19 +252,33 @@ LOGGING = {
 
 # CORS/CSRF settings for frontend integration
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+
+# For development: Allow all origins (change this in production!)
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = []  # Not used when CORS_ALLOW_ALL_ORIGINS is True
+else:
+    # Production settings - only allow specific origins
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://10.19.58.120:8080",  # Your network IP for access from other devices
+    ]
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127\.0\.0\.1:\d+$",
+    r"^http://10\.\d+\.\d+\.\d+:\d+$",  # Allow any IP in 10.x.x.x range (local network)
+    r"^http://192\.168\.\d+\.\d+:\d+$",  # Allow any IP in 192.168.x.x range (local network)
 ]
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8080",
     "http://127.0.0.1:8080",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://10.19.58.120:8080",  # Your network IP for access from other devices
 ]

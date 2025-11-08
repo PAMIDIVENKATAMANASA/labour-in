@@ -108,7 +108,9 @@ export function PostJobModal({ trigger }: PostJobModalProps) {
     },
     onSuccess: (data) => {
       toast.success(`Job "${data.job_title}" posted successfully!`)
+      // Invalidate all related queries to refresh the dashboard
       queryClient.invalidateQueries({ queryKey: ["employerJobs"] })
+      queryClient.invalidateQueries({ queryKey: ["employerDashboardStats"] })
       setIsOpen(false)
       reset()
     },
