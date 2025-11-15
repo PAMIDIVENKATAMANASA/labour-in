@@ -6,9 +6,9 @@ const detectDefaultApiBase = () => {
   // Otherwise, fallback to same-origin "/api/" which works when reverse-proxied.
   try {
     const isLocalDev8080 = typeof window !== "undefined" && window.location.port === "8080"
-    const apiBase = isLocalDev8080 ? "http://10.19.58.120:8000/api/" : "/api/"
+    const apiBase = isLocalDev8080 ? "http://10.96.138.120:8000/api/" : "/api/"
     console.log(`[API] Detected API Base: ${apiBase}`)
-    return isLocalDev8080 ? "http://10.19.58.120:8000/api/" : "/api/"
+    return isLocalDev8080 ? "http://10.96.138.120:8000/api/" : "/api/"
 
   } catch {
     return "/api/"

@@ -38,6 +38,11 @@ from .permissions import (
 
 User = get_user_model()
 
+from django.http import JsonResponse
+
+# This view confirms the API is live and operational
+def health_check(request):
+    return JsonResponse({'status': 'ok', 'message': 'Django API is running'})
 
 class UserRegistrationView(APIView):
     """User registration endpoint"""

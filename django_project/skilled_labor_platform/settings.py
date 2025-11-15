@@ -34,7 +34,8 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "[::1]",
     "10.19.58.120",  # Your network IP address
-    "*",  # Allow all hosts (only for development!)
+    "*",
+      '10.96.138.120',  # Allow all hosts (only for development!)
 ]
 
 
@@ -265,7 +266,8 @@ else:
         "http://127.0.0.1:8080",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://10.19.58.120:8080",  # Your network IP for access from other devices
+        "http://10.19.58.120:8080", 
+         'http://10.96.138.120:8080', # Your network IP for access from other devices
     ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -280,5 +282,6 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8080",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://10.19.58.120:8080",  # Your network IP for access from other devices
+    "http://10.19.58.120:8080", 
+     'http://10.96.138.120:8080', # Your network IP for access from other devices
 ]
