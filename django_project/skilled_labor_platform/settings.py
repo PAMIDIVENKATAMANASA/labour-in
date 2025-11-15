@@ -94,15 +94,19 @@ ASGI_APPLICATION = "skilled_labor_platform.asgi.application"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Database
-# Use MySQL if environment variables are provided; otherwise use SQLite (works on Render)
-if os.getenv("MYSQL_NAME") or os.getenv("MYSQL_HOST"):
+# Force SQLite for Render deployment (no database setup needed)
+# Only use MySQL if explicitly configured via environment variables
+USE_MYSQL = os.getenv("USE_MYSQL", "false").lower() == "true"
+
+if USE_MYSQL and os.getenv("MYSQL_HOST") and os.getenv("MYSQL_NAME"):
+    # MySQL configuration (only if explicitly enabled)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
-            "NAME": os.getenv("MYSQL_NAME", "skilled_labor_db"),
+            "NAME": os.getenv("MYSQL_NAME"),
             "USER": os.getenv("MYSQL_USER", "root"),
             "PASSWORD": os.getenv("MYSQL_PASSWORD", "secret"),
-            "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
+            "HOST": os.getenv("MYSQL_HOST"),
             "PORT": os.getenv("MYSQL_PORT", "3306"),
             "OPTIONS": {
                 "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
@@ -110,8 +114,7 @@ if os.getenv("MYSQL_NAME") or os.getenv("MYSQL_HOST"):
         }
     }
 else:
-    # Use SQLite for production (Render) and local development
-    # SQLite works out of the box on Render without any database setup
+    # Default to SQLite (works on Render without any setup)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
