@@ -57,8 +57,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+    
     "django.middleware.security.SecurityMiddleware",
+    'corsheaders.middleware.CorsMiddleware', 
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -284,4 +285,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://10.19.58.120:8080", 
      'http://10.96.138.120:8080', # Your network IP for access from other devices
+]
+
+CORS_ALLOWED_ORIGINS = [
+    # Add your deployed frontend URL here
+    "https://labour-in.vercel.app", 
+    # Add any other domains you need (like a development/staging domain)
+    # "https://*.vercel.app", # You can use a wildcard for all your vercel deployments if preferred
 ]
