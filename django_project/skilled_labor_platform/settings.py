@@ -268,7 +268,8 @@ else:
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://10.19.58.120:8080", 
-         'http://10.96.138.120:8080', # Your network IP for access from other devices
+        'http://10.96.138.120:8080', # Your network IP for access from other devices
+        "https://labour-in.vercel.app",  # Production frontend on Vercel
     ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -276,6 +277,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://127\.0\.0\.1:\d+$",
     r"^http://10\.\d+\.\d+\.\d+:\d+$",  # Allow any IP in 10.x.x.x range (local network)
     r"^http://192\.168\.\d+\.\d+:\d+$",  # Allow any IP in 192.168.x.x range (local network)
+    r"^https://.*\.vercel\.app$",  # Allow all Vercel preview deployments
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -284,12 +286,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://10.19.58.120:8080", 
-     'http://10.96.138.120:8080', # Your network IP for access from other devices
+    'http://10.96.138.120:8080', # Your network IP for access from other devices
+    "https://labour-in.vercel.app",  # Production frontend on Vercel
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    # Add your deployed frontend URL here
-    "https://labour-in.vercel.app", 
-    # Add any other domains you need (like a development/staging domain)
-    # "https://*.vercel.app", # You can use a wildcard for all your vercel deployments if preferred
-]
+# Additional CORS origins (merged with production settings above)
+# This list is kept separate for clarity but should match CORS_ALLOWED_ORIGINS in production
