@@ -2,17 +2,45 @@ import { setAuthTokens, clearAuth } from "@/lib/auth"
 
 console.log("[API] api.ts loaded")
 const detectDefaultApiBase = () => {
-  // If a Vite/Next dev server is serving the frontend on 8080, default to Django at 8000.
-  // Otherwise, fallback to same-origin "/api/" which works when reverse-proxied.
-  try {
-    const isLocalDev8080 = typeof window !== "undefined" && window.location.port === "8080"
-    const apiBase = isLocalDev8080 ? "http://10.96.138.120:8000/api/" : "/api/"
-    console.log(`[API] Detected API Base: ${apiBase}`)
-    return isLocalDev8080 ? "http://10.96.138.120:8000/api/" : "/api/"
-
-  } catch {
-    return "/api/"
+  // Detect environment and return appropriate API base URL
+  if (typeof window === "undefined") {
+    return "/api/" // SSR fallback
   }
+
+  const hostname = window.location.hostname
+  const port = window.location.port
+  const protocol = window.location.protocol
+
+  // Production: Check if we're on Vercel or production domain
+  const isProduction = hostname.includes("vercel.app") || 
+                       hostname.includes("labour-in") ||
+                       (protocol === "https:" && hostname !== "localhost" && hostname !== "127.0.0.1")
+
+  // Local development on port 8080
+  const isLocalDev8080 = port === "8080" && (hostname === "localhost" || hostname === "127.0.0.1" || hostname.startsWith("10.") || hostname.startsWith("192.168."))
+
+  if (isLocalDev8080) {
+    const apiBase = "http://10.96.138.120:8000/api/"
+    console.log(`[API] Detected Local Dev - API Base: ${apiBase}`)
+    return apiBase
+  }
+
+  if (isProduction) {
+    // In production, use environment variable or fallback
+    // User MUST set VITE_API_BASE in Vercel environment variables
+    const envApiBase = (import.meta as ImportMeta)?.env?.VITE_API_BASE
+    if (envApiBase) {
+      console.log(`[API] Using Production API Base from env: ${envApiBase}`)
+      return envApiBase.endsWith("/") ? envApiBase : `${envApiBase}/`
+    }
+    // Fallback: try to use same origin (won't work unless backend is on same domain)
+    console.warn("[API] ⚠️ Production detected but VITE_API_BASE not set! API calls will fail.")
+    console.warn("[API] Please set VITE_API_BASE environment variable in Vercel dashboard.")
+    return "/api/" // This will fail, but at least we warn
+  }
+
+  // Default fallback
+  return "/api/"
 }
 
 export type UserData = {

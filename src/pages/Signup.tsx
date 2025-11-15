@@ -9,9 +9,6 @@ import { Button } from "@/components/ui/button"
 import Navbar from "@/components/Navbar"
 import { apiFetch } from "@/lib/api"
 
-const rawApiBase = import.meta.env.VITE_API_BASE ?? "/api/"
-const API_BASE = rawApiBase.endsWith("/") ? rawApiBase : `${rawApiBase}/`
-
 const Signup = () => {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
