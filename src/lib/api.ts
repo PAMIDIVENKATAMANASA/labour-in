@@ -26,17 +26,17 @@ const detectDefaultApiBase = () => {
   }
 
   if (isProduction) {
-    // In production, use environment variable or fallback
-    // User MUST set VITE_API_BASE in Vercel environment variables
+    // In production, use environment variable or fallback to known backend URL
     const envApiBase = (import.meta as ImportMeta)?.env?.VITE_API_BASE
     if (envApiBase) {
       console.log(`[API] Using Production API Base from env: ${envApiBase}`)
       return envApiBase.endsWith("/") ? envApiBase : `${envApiBase}/`
     }
-    // Fallback: try to use same origin (won't work unless backend is on same domain)
-    console.warn("[API] ⚠️ Production detected but VITE_API_BASE not set! API calls will fail.")
-    console.warn("[API] Please set VITE_API_BASE environment variable in Vercel dashboard.")
-    return "/api/" // This will fail, but at least we warn
+    // Fallback: Use the known Render backend URL
+    const renderBackend = "https://labour-in-1.onrender.com/api/"
+    console.warn("[API] ⚠️ VITE_API_BASE not set, using fallback backend URL:", renderBackend)
+    console.warn("[API] For better control, set VITE_API_BASE in Vercel environment variables.")
+    return renderBackend
   }
 
   // Default fallback
