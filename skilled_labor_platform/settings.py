@@ -27,6 +27,12 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['10.19.58.120', '127.0.0.1', 'localhost', '*','10.96.138.120']
 
+CORS_ALLOWED_ORIGINS = [
+    # Add your deployed frontend URL here
+    "https://labour-in.vercel.app", 
+    # Add any other domains you need (like a development/staging domain)
+    # "https://*.vercel.app", # You can use a wildcard for all your vercel deployments if preferred
+]
 
 # Application definition
 
