@@ -1,3 +1,13 @@
+/**
+ * ⚠️ NOTE: This file is NOT used by Vercel for this project.
+ * 
+ * This is a Vite + React project, not a Next.js project.
+ * Vercel uses vercel.json for Vite projects.
+ * 
+ * This file can be safely removed or kept for reference.
+ * The URL routing is handled by React Router in src/App.tsx.
+ */
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Add other configurations here if needed
