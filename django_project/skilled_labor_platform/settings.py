@@ -94,12 +94,12 @@ ASGI_APPLICATION = "skilled_labor_platform.asgi.application"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Database
-# Prefer MySQL if environment variables are provided; fall back to SQLite for local dev
-if os.getenv("MYSQL_NAME"):
+# Use MySQL if environment variables are provided; otherwise use SQLite (works on Render)
+if os.getenv("MYSQL_NAME") or os.getenv("MYSQL_HOST"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
-            "NAME": os.getenv("Skilled_labour"),
+            "NAME": os.getenv("MYSQL_NAME", "skilled_labor_db"),
             "USER": os.getenv("MYSQL_USER", "root"),
             "PASSWORD": os.getenv("MYSQL_PASSWORD", "secret"),
             "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
@@ -110,16 +110,14 @@ if os.getenv("MYSQL_NAME"):
         }
     }
 else:
+    # Use SQLite for production (Render) and local development
+    # SQLite works out of the box on Render without any database setup
     DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": 'skilled_labor_db',  # e.g., 'skilled_labor_db'
-        "USER": 'root',      # e.g., 'root'
-        "PASSWORD": 'secret',  # e.g., 'password123'
-        "HOST": '127.0.0.1',                # Usually 'localhost' or '127.0.0.1'
-        "PORT": '3306',                     # Default MySQL port
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
 
 
 # Password validation
