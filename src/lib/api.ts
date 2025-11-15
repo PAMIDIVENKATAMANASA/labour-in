@@ -66,8 +66,20 @@ export const editUser = (userId: number, data: Partial<UserData>) => {
 
 
 export const API_BASE = (() => {
-  const raw = (import.meta as ImportMeta)?.env?.VITE_API_BASE ?? detectDefaultApiBase()
-  return raw.endsWith("/") ? raw : `${raw}/`
+  const envApiBase = (import.meta as ImportMeta)?.env?.VITE_API_BASE
+  const detectedBase = detectDefaultApiBase()
+  const raw = envApiBase ?? detectedBase
+  const finalBase = raw.endsWith("/") ? raw : `${raw}/`
+  
+  // Log the API base being used for debugging
+  console.log("[API] API_BASE resolved:", {
+    envVar: envApiBase || "(not set)",
+    detected: detectedBase,
+    final: finalBase,
+    fullUrl: typeof window !== "undefined" ? `${finalBase}auth/login/` : "(SSR)"
+  })
+  
+  return finalBase
 })()
 
 type ApiOptions = Omit<RequestInit, "headers"> & {
@@ -126,6 +138,9 @@ async function refreshAccessToken(): Promise<boolean> {
 export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
   const url = `${API_BASE}${path.startsWith("/") ? path.slice(1) : path}`
   const method = (opts.method || "GET").toUpperCase()
+  
+  // Log the full URL being called for debugging
+  console.log(`[API] apiFetch: Calling ${method} ${url}`)
 
   const makeHeaders = (withAuth: boolean) => {
     const h: Record<string, string> = {

@@ -34,8 +34,9 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "[::1]",
     "10.19.58.120",  # Your network IP address
-    "*",
-      '10.96.138.120',  # Allow all hosts (only for development!)
+    '10.96.138.120',  # Your network IP for access from other devices
+    "labour-in-1.onrender.com",  # Render backend deployment
+    "*",  # Allow all hosts (only for development!)
 ]
 
 
